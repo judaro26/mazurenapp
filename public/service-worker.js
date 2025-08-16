@@ -1,43 +1,73 @@
-const CACHE_NAME = "my-pwa-cache-v1";
-const urlsToCache = [
-  "/",               // root
-  "/index.html",     // main page
-  "/manifest.json",  // manifest
-  "/favicon.ico",    // favicon
-  "/styles.css",     // your Tailwind build file
-  "/script.js"       // your main JS file
+const CACHE_NAME = "creditx-cache-v1";
+const ASSETS_TO_CACHE = [
+  "/",                // Root (homepage)
+  "/index.html",      // Main HTML
+  "/manifest.json",   // PWA manifest
+  "/favicon.ico",     // Favicon
+  "/logo192.png",     // Logo
+  "/logo512.png",     // Bigger logo
+  "/tailwind.css",    // Your Tailwind CSS build file
+  "/app.js",          // Your main JS file
 ];
 
-// Install Service Worker and Cache Files
-self.addEventListener("install", event => {
+// Install event: cache everything listed
+self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll(urlsToCache);
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(ASSETS_TO_CACHE);
     })
   );
+  self.skipWaiting(); // Activate immediately
 });
 
-// Activate and Cleanup Old Caches
-self.addEventListener("activate", event => {
+// Activate event: clear old caches
+self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then(cacheNames => {
+    caches.keys().then((cacheNames) => {
       return Promise.all(
-        cacheNames.map(cacheName => {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName);
+        cacheNames.map((cache) => {
+          if (cache !== CACHE_NAME) {
+            return caches.delete(cache);
           }
         })
       );
     })
   );
+  self.clients.claim();
 });
 
-// Intercept Fetch Requests
-self.addEventListener("fetch", event => {
+// Fetch event: serve from cache first, then network
+self.addEventListener("fetch", (event) => {
   event.respondWith(
-    caches.match(event.request).then(response => {
-      // Return cached response OR fetch new one
-      return response || fetch(event.request);
+    caches.match(event.request).then((cachedResponse) => {
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+      return fetch(event.request)
+        .then((networkResponse) => {
+          // Only cache valid responses
+          if (
+            !networkResponse ||
+            networkResponse.status !== 200 ||
+            networkResponse.type !== "basic"
+          ) {
+            return networkResponse;
+          }
+
+          // Clone response to store in cache
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+
+          return networkResponse;
+        })
+        .catch(() => {
+          // Optional: fallback page if offline
+          if (event.request.mode === "navigate") {
+            return caches.match("/index.html");
+          }
+        });
     })
   );
 });
