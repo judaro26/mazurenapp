@@ -1,6 +1,13 @@
 [build]
   command = "npm run build"
   publish = "build"
+  environment = { NODE_ENV = "production" }
 
-[build.environment]
-  NETLIFY_SKIP_SECRETS_SCAN = "true"
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
