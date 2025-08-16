@@ -7,31 +7,26 @@
     "lucide-react": "^0.395.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "tailwindcss": "^3.4.4"
+    "react-scripts": "5.0.1",
+    "tailwindcss": "^3.4.4",
+    "autoprefixer": "^10.4.15",
+    "postcss": "^8.4.30"
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "npm run build:css && react-scripts build",
-    "build:css": "tailwindcss -i ./src/index.css -o ./public/index.css --minify",
+    "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
+  "engines": {
+    "node": "18.x",
+    "npm": "10.x"
+  },
   "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
+    "extends": ["react-app", "react-app/jest"]
   },
   "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
+    "production": [">0.2%", "not dead", "not op_mini all"],
+    "development": ["last 1 chrome version", "last 1 firefox version", "last 1 safari version"]
   }
 }
