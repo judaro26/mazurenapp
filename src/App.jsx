@@ -47,10 +47,9 @@ const App = () => {
   useEffect(() => {
     try {
       // Usar variables globales proporcionadas por el entorno de Canvas
-      const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-      const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-      const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-      
+      const appId = process.env.REACT_APP_ID;
+      const firebaseConfig = process.env.REACT_APP_FIREBASE_CONFIG;
+      const initialAuthToken = process.env.REACT_APP_INITIAL_AUTH_TOKEN;
       const app = initializeApp(firebaseConfig);
       const auth = getAuth(app);
       const firestore = getFirestore(app);
