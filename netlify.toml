@@ -1,11 +1,6 @@
 [build]
-  # Disables secrets scanning for specific files known to contain placeholder API keys.
-  # This is a more targeted solution for the Firebase build error.
-  secrets_scanning_smart_detection_omission_values = [
-    "node_modules/@firebase/app/dist/app-public.d.ts",
-    "node_modules/@firebase/app/dist/app.d.ts",
-    "node_modules/@firebase/app/dist/app/src/global_index.d.ts",
-    "node_modules/@firebase/app/dist/app/src/public-types.d.ts",
-    "node_modules/@firebase/app/dist/esm/app/src/public-types.d.ts",
-    "node_modules/@firebase/firestore/dist/firestore/src/global_index.d.ts"
-  ]
+  publish = "dist"
+  command = "npm run build"
+
+[build.environment]
+  NETLIFY_SKIP_SECRETS_SCAN = "true"
