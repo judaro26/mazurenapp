@@ -1,4 +1,2 @@
 [build]
-  # Configure secrets scanning to ignore the node_modules directory.
-  # The Firebase SDK contains placeholder API keys which are flagged by the scanner.
   secrets_scanning_omission_paths = ["node_modules/**"]
