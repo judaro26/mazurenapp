@@ -55,7 +55,9 @@ const translations = {
       loginButton: "Log In",
       logoutButton: "Log Out",
       continueButton: "Continue as Standard User",
-      invalidCredentials: "Invalid email or password. Please try again."
+      invalidCredentials: "Invalid email or password. Please try again.",
+      residentLogin: "Resident Login",
+      managerLogin: "Manager Login"
     }
   },
   es: {
@@ -108,7 +110,9 @@ const translations = {
       loginButton: "Iniciar sesión",
       logoutButton: "Cerrar sesión",
       continueButton: "Continuar como usuario estándar",
-      invalidCredentials: "Correo electrónico o contraseña incorrectos. Por favor, inténtelo de nuevo."
+      invalidCredentials: "Correo electrónico o contraseña incorrectos. Por favor, inténtelo de nuevo.",
+      residentLogin: "Iniciar sesión como residente",
+      managerLogin: "Iniciar sesión como administrador"
     }
   }
 };
@@ -126,6 +130,7 @@ const App = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [loginMode, setLoginMode] = useState('resident'); // 'resident' or 'manager'
 
   // State for the UI
   const [view, setView] = useState('announcements');
@@ -149,7 +154,6 @@ const App = () => {
   useEffect(() => {
     const initializeFirebase = async () => {
       try {
-        // The __app_id, __firebase_config, and __initial_auth_token variables are provided by the hosting environment.
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
@@ -332,7 +336,7 @@ const App = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
-    if (!auth) return; // Check if auth is available
+    if (!auth) return; // Ensure auth is initialized before login attempt
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
@@ -342,7 +346,7 @@ const App = () => {
   };
 
   const handleStandardLogin = async () => {
-    if (!auth) return; // Check if auth is available
+    if (!auth) return; // Ensure auth is initialized before login attempt
     try {
       await signInAnonymously(auth);
     } catch (error) {
@@ -351,7 +355,7 @@ const App = () => {
   };
 
   const handleLogout = async () => {
-    if (!auth) return; // Check if auth is available
+    if (!auth) return; // Ensure auth is initialized before logout attempt
     try {
       await signOut(auth);
     } catch (error) {
@@ -390,9 +394,31 @@ const App = () => {
     return (
       <div className="min-h-screen bg-gray-100 font-sans text-gray-800 p-4 sm:p-6 flex items-center justify-center">
         <div className="bg-white p-8 rounded-2xl shadow-md max-w-sm w-full">
-          <h1 className="text-2xl font-bold text-center mb-2">{t.login.title}</h1>
-          <p className="text-gray-600 text-center mb-6">{t.login.subtitle}</p>
-          <div className="flex flex-col space-y-4">
+          <div className="flex flex-col items-center mb-4">
+            <h1 className="text-2xl font-bold mb-2">{t.login.title}</h1>
+            <p className="text-gray-600 mb-6">{t.login.subtitle}</p>
+          </div>
+
+          <div className="flex justify-center mb-6">
+            <button
+              onClick={() => setLoginMode('resident')}
+              className={`px-6 py-2 rounded-full font-semibold transition-colors duration-200 ${
+                loginMode === 'resident' ? 'bg-blue-600 text-white shadow' : 'bg-gray-200 text-gray-600'
+              }`}
+            >
+              Resident
+            </button>
+            <button
+              onClick={() => setLoginMode('manager')}
+              className={`ml-2 px-6 py-2 rounded-full font-semibold transition-colors duration-200 ${
+                loginMode === 'manager' ? 'bg-blue-600 text-white shadow' : 'bg-gray-200 text-gray-600'
+              }`}
+            >
+              Manager
+            </button>
+          </div>
+
+          {loginMode === 'manager' && (
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">{t.login.emailLabel}</label>
@@ -424,18 +450,16 @@ const App = () => {
                 {t.login.loginButton}
               </button>
             </form>
-            <div className="relative flex py-4 items-center">
-              <div className="flex-grow border-t border-gray-300"></div>
-              <span className="flex-shrink mx-4 text-gray-500 text-sm">or</span>
-              <div className="flex-grow border-t border-gray-300"></div>
-            </div>
+          )}
+
+          {loginMode === 'resident' && (
             <button
               onClick={handleStandardLogin}
               className="w-full bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
             >
               {t.login.continueButton}
             </button>
-          </div>
+          )}
         </div>
       </div>
     );
