@@ -130,7 +130,7 @@ const App = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
-  const [loginMode, setLoginMode] = useState('resident'); // 'resident' or 'manager'
+  const [loginMode, setLoginMode] = useState('resident');
 
   // State for the UI
   const [view, setView] = useState('announcements');
@@ -336,7 +336,7 @@ const App = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
-    if (!auth) return; // Ensure auth is initialized before login attempt
+    if (!auth) return;
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
@@ -346,7 +346,7 @@ const App = () => {
   };
 
   const handleStandardLogin = async () => {
-    if (!auth) return; // Ensure auth is initialized before login attempt
+    if (!auth) return;
     try {
       await signInAnonymously(auth);
     } catch (error) {
@@ -355,7 +355,7 @@ const App = () => {
   };
 
   const handleLogout = async () => {
-    if (!auth) return; // Ensure auth is initialized before logout attempt
+    if (!auth) return;
     try {
       await signOut(auth);
     } catch (error) {
