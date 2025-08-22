@@ -336,7 +336,10 @@ const App = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
-    if (!auth) return;
+    if (!auth) {
+      setLoginError("Authentication service is not ready.");
+      return;
+    }
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
@@ -346,7 +349,10 @@ const App = () => {
   };
 
   const handleStandardLogin = async () => {
-    if (!auth) return;
+    if (!auth) {
+      setLoginError("Authentication service is not ready.");
+      return;
+    }
     try {
       await signInAnonymously(auth);
     } catch (error) {
