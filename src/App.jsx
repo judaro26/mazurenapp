@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithCustomToken, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
-import { getFirestore, doc, addDoc, onSnapshot, collection, query, serverTimestamp, orderBy } from 'firebase/firestore';
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, signInAnonymously } from 'firebase/auth';
+import { getFirestore, doc, addDoc, onSnapshot, collection, query, serverTimestamp, orderBy, getDoc, setDoc } from 'firebase/firestore';
 
 // Language content object
 const translations = {
@@ -45,7 +45,18 @@ const translations = {
       cancel: "Cancel",
     },
     loading: "Loading...",
-    toggleManager: "Toggle Manager View"
+    login: {
+      title: "Welcome",
+      subtitle: "Please log in to continue.",
+      emailLabel: "Email",
+      passwordLabel: "Password",
+      emailPlaceholder: "your-email@example.com",
+      passwordPlaceholder: "Enter password",
+      loginButton: "Log In",
+      logoutButton: "Log Out",
+      continueButton: "Continue as Standard User",
+      invalidCredentials: "Invalid email or password. Please try again."
+    }
   },
   es: {
     appTitle: "Administrador de Edificio",
@@ -87,7 +98,18 @@ const translations = {
       cancel: "Cancelar",
     },
     loading: "Cargando...",
-    toggleManager: "Alternar vista de administrador"
+    login: {
+      title: "Bienvenido",
+      subtitle: "Por favor, inicie sesión para continuar.",
+      emailLabel: "Correo electrónico",
+      passwordLabel: "Contraseña",
+      emailPlaceholder: "su-correo@ejemplo.com",
+      passwordPlaceholder: "Introducir la contraseña",
+      loginButton: "Iniciar sesión",
+      logoutButton: "Cerrar sesión",
+      continueButton: "Continuar como usuario estándar",
+      invalidCredentials: "Correo electrónico o contraseña incorrectos. Por favor, inténtelo de nuevo."
+    }
   }
 };
 
@@ -99,16 +121,20 @@ const App = () => {
   const [auth, setAuth] = useState(null);
   const [userId, setUserId] = useState(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
-  const [isManager, setIsManager] = useState(false); // New state for manager view
+  const [isManager, setIsManager] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
 
   // State for the UI
-  const [view, setView] = useState('announcements'); // 'announcements', 'pqrs', 'documents'
+  const [view, setView] = useState('announcements');
   const [loading, setLoading] = useState(true);
   const [announcements, setAnnouncements] = useState([]);
   const [pqrs, setPqrs] = useState([]);
   const [documents, setDocuments] = useState([]);
-  const [showModal, setShowModal] = useState(null); // 'announcement', 'pqr', 'document'
-  const [language, setLanguage] = useState('en'); // 'en' or 'es'
+  const [showModal, setShowModal] = useState(null);
+  const [language, setLanguage] = useState('en');
   const t = translations[language];
 
   // Refs for forms to clear inputs
@@ -124,7 +150,6 @@ const App = () => {
     const initializeFirebase = async () => {
       try {
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        // Gracefully handle missing firebase config, which can happen in some build environments
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
@@ -142,17 +167,32 @@ const App = () => {
         setAuth(authInstance);
         setDb(dbInstance);
 
+        // Listen for auth state changes to update login status and user info
         const unsubscribe = onAuthStateChanged(authInstance, async (user) => {
           if (user) {
             setUserId(user.uid);
+            setIsLoggedIn(true);
+
+            // Fetch user role from Firestore
+            const userDocRef = doc(dbInstance, `artifacts/${appId}/public/data/users`, user.uid);
+            const userDocSnap = await getDoc(userDocRef);
+
+            if (userDocSnap.exists()) {
+              setIsManager(userDocSnap.data().isManager || false);
+            } else {
+              // Create user document if it doesn't exist (for standard users)
+              await setDoc(userDocRef, { isManager: false, email: user.email });
+              setIsManager(false);
+            }
+            
             setIsAuthReady(true);
             setLoading(false);
           } else {
-            if (initialAuthToken) {
-              await signInWithCustomToken(authInstance, initialAuthToken);
-            } else {
-              await signInAnonymously(authInstance);
-            }
+            setUserId(null);
+            setIsLoggedIn(false);
+            setIsManager(false);
+            setIsAuthReady(true);
+            setLoading(false);
           }
         });
 
@@ -289,6 +329,33 @@ const App = () => {
     }
   };
 
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoginError('');
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (error) {
+      console.error("Login failed:", error);
+      setLoginError(t.login.invalidCredentials);
+    }
+  };
+
+  const handleStandardLogin = async () => {
+    try {
+      await signInAnonymously(auth);
+    } catch (error) {
+      console.error("Anonymous login failed:", error);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
+  };
+
   // Modal component for forms
   const Modal = ({ children, title, onClose }) => (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center p-4">
@@ -315,6 +382,63 @@ const App = () => {
     );
   }
 
+  // Render Login Screen if not logged in
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-gray-100 font-sans text-gray-800 p-4 sm:p-6 flex items-center justify-center">
+        <div className="bg-white p-8 rounded-2xl shadow-md max-w-sm w-full">
+          <h1 className="text-2xl font-bold text-center mb-2">{t.login.title}</h1>
+          <p className="text-gray-600 text-center mb-6">{t.login.subtitle}</p>
+          <div className="flex flex-col space-y-4">
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">{t.login.emailLabel}</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder={t.login.emailPlaceholder}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">{t.login.passwordLabel}</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder={t.login.passwordPlaceholder}
+                  required
+                />
+                {loginError && <p className="text-red-500 text-xs mt-2">{loginError}</p>}
+              </div>
+              <button
+                type="submit"
+                className="w-full bg-purple-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-purple-700 transition-colors"
+              >
+                {t.login.loginButton}
+              </button>
+            </form>
+            <div className="relative flex py-4 items-center">
+              <div className="flex-grow border-t border-gray-300"></div>
+              <span className="flex-shrink mx-4 text-gray-500 text-sm">or</span>
+              <div className="flex-grow border-t border-gray-300"></div>
+            </div>
+            <button
+              onClick={handleStandardLogin}
+              className="w-full bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
+            >
+              {t.login.continueButton}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+
   // Main UI rendering
   return (
     <div className="min-h-screen bg-gray-100 font-sans text-gray-800 p-4 sm:p-6">
@@ -335,13 +459,13 @@ const App = () => {
               >
                 {language === 'en' ? 'Español' : 'English'}
               </button>
-            </div>
-            <button
-                onClick={() => setIsManager(!isManager)}
-                className="mt-2 bg-purple-600 text-white px-3 py-1 rounded-full text-xs font-semibold hover:bg-purple-700 transition-colors"
+              <button
+                onClick={handleLogout}
+                className="ml-2 bg-red-600 text-white px-3 py-1 rounded-full text-xs font-semibold hover:bg-red-700 transition-colors"
               >
-                {t.toggleManager}
+                {t.login.logoutButton}
               </button>
+            </div>
           </div>
         </header>
 
