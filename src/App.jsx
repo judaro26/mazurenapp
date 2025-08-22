@@ -369,7 +369,7 @@ const App = () => {
                   <li className="text-gray-500 italic text-center py-4">No documents uploaded yet.</li>
                 ) : (
                   documents.map((doc) => (
-                    <li key={doc.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                    <li key={doc.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex flex-col sm:flex-row justify-content-between">
                       <div className="flex-1">
                         <h3 className="text-xl font-semibold">{doc.name}</h3>
                         <p className="text-sm text-gray-400 mt-1">
