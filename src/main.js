@@ -1,29 +1,15 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
-import './index.css';
+import App from './App.jsx';
 
-// Create the root for the React application.
-const root = ReactDOM.createRoot(document.getElementById('root'));
+// Find the root DOM element where the app will be rendered
+const rootElement = document.getElementById('root');
 
-// Render the App component into the root.
-root.render(
+// Use the createRoot API to render the React application
+// This is the modern way to render a React app in a browser
+// React.StrictMode is a tool for highlighting potential problems in an application
+ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <App />
-  </React.StrictMode>
+  </React.StrictMode>,
 );
-
-// --- PWA Service Worker Registration ---
-// Registers a service worker to enable PWA features like offline access and
-// adding the app to the home screen.
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js')
-      .then(registration => {
-        console.log('Service Worker registered:', registration);
-      })
-      .catch(registrationError => {
-        console.log('Service Worker registration failed:', registrationError);
-      });
-  });
-}
