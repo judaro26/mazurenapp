@@ -2,14 +2,22 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 
-// Find the root DOM element where the app will be rendered
-const rootElement = document.getElementById('root');
+// Wait until React mounts before hiding the loading screen
+function hideLoadingScreen() {
+  const loadingDiv = document.getElementById('loading');
+  if (loadingDiv) loadingDiv.style.display = 'none';
+}
 
-// Use the createRoot API to render the React application
-// This is the modern way to render a React app in a browser
-// React.StrictMode is a tool for highlighting potential problems in an application
-ReactDOM.createRoot(rootElement).render(
+// Root element where React will mount
+const rootElement = document.getElementById('root');
+const root = ReactDOM.createRoot(rootElement);
+
+// Render the app and then hide loading screen
+root.render(
   <React.StrictMode>
     <App />
-  </React.StrictMode>,
+  </React.StrictMode>
 );
+
+// Once React is mounted, hide the loading spinner
+hideLoadingScreen();
