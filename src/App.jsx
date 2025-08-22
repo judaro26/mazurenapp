@@ -461,9 +461,9 @@ const App = () => {
           {loginMode === 'resident' && (
             <button
               onClick={handleStandardLogin}
-              className="w-full bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
+              className="w-full bg-purple-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-purple-700 transition-colors"
             >
-              {t.login.continueButton}
+              {t.login.residentLogin}
             </button>
           )}
         </div>
