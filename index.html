@@ -10,6 +10,18 @@
   </head>
   <body class="bg-gray-100 text-gray-800">
     <div id="root"></div>
-    <script type="module" src="/src/code.jsx"></script>
+
+    <script>
+      window.__firebase_config = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_AUTH_DOMAIN",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_STORAGE_BUCKET",
+        messagingSenderId: "YOUR_SENDER_ID",
+        appId: "YOUR_APP_ID",
+      };
+    </script>
+
+    <script type="module" src="/src/index.jsx"></script>
   </body>
 </html>
