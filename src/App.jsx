@@ -44,7 +44,8 @@ const translations = {
       upload: "Upload",
       cancel: "Cancel",
     },
-    loading: "Loading..."
+    loading: "Loading...",
+    toggleManager: "Toggle Manager View"
   },
   es: {
     appTitle: "Administrador de Edificio",
@@ -85,7 +86,8 @@ const translations = {
       upload: "Subir",
       cancel: "Cancelar",
     },
-    loading: "Cargando..."
+    loading: "Cargando...",
+    toggleManager: "Alternar vista de administrador"
   }
 };
 
@@ -97,6 +99,7 @@ const App = () => {
   const [auth, setAuth] = useState(null);
   const [userId, setUserId] = useState(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isManager, setIsManager] = useState(false); // New state for manager view
 
   // State for the UI
   const [view, setView] = useState('announcements'); // 'announcements', 'pqrs', 'documents'
@@ -120,9 +123,9 @@ const App = () => {
   useEffect(() => {
     const initializeFirebase = async () => {
       try {
-        // Retrieve Firebase config and app ID from the environment variables
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        // Gracefully handle missing firebase config, which can happen in some build environments
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         if (!firebaseConfig || Object.keys(firebaseConfig).length === 0) {
@@ -131,7 +134,6 @@ const App = () => {
           return;
         }
 
-        // Initialize Firebase services
         const app = initializeApp(firebaseConfig);
         const authInstance = getAuth(app);
         const dbInstance = getFirestore(app);
@@ -140,14 +142,12 @@ const App = () => {
         setAuth(authInstance);
         setDb(dbInstance);
 
-        // Set up auth state listener
         const unsubscribe = onAuthStateChanged(authInstance, async (user) => {
           if (user) {
             setUserId(user.uid);
             setIsAuthReady(true);
             setLoading(false);
           } else {
-            // Sign in with the custom token if available, otherwise anonymously
             if (initialAuthToken) {
               await signInWithCustomToken(authInstance, initialAuthToken);
             } else {
@@ -156,7 +156,6 @@ const App = () => {
           }
         });
 
-        // Cleanup the listener on component unmount
         return () => unsubscribe();
       } catch (error) {
         console.error("Error initializing Firebase:", error);
@@ -171,14 +170,12 @@ const App = () => {
   useEffect(() => {
     if (!db || !isAuthReady) return;
 
-    // Use a unique path for the app's public data
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
     const announcementsPath = `artifacts/${appId}/public/data/announcements`;
     const pqrsPath = `artifacts/${appId}/public/data/pqrs`;
     const documentsPath = `artifacts/${appId}/public/data/documents`;
 
     try {
-      // Listener for Announcements
       const announcementsQuery = query(collection(db, announcementsPath), orderBy('createdAt', 'desc'));
       const unsubscribeAnnouncements = onSnapshot(announcementsQuery, (snapshot) => {
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -187,7 +184,6 @@ const App = () => {
         console.error("Error fetching announcements:", error);
       });
 
-      // Listener for PQRs
       const pqrsQuery = query(collection(db, pqrsPath), orderBy('createdAt', 'desc'));
       const unsubscribePqrs = onSnapshot(pqrsQuery, (snapshot) => {
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -196,7 +192,6 @@ const App = () => {
         console.error("Error fetching PQRs:", error);
       });
 
-      // Listener for Documents
       const documentsQuery = query(collection(db, documentsPath), orderBy('createdAt', 'desc'));
       const unsubscribeDocuments = onSnapshot(documentsQuery, (snapshot) => {
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -205,7 +200,6 @@ const App = () => {
         console.error("Error fetching documents:", error);
       });
 
-      // Cleanup listeners on unmount
       return () => {
         unsubscribeAnnouncements();
         unsubscribePqrs();
@@ -342,6 +336,12 @@ const App = () => {
                 {language === 'en' ? 'Español' : 'English'}
               </button>
             </div>
+            <button
+                onClick={() => setIsManager(!isManager)}
+                className="mt-2 bg-purple-600 text-white px-3 py-1 rounded-full text-xs font-semibold hover:bg-purple-700 transition-colors"
+              >
+                {t.toggleManager}
+              </button>
           </div>
         </header>
 
@@ -380,12 +380,14 @@ const App = () => {
             <div className="bg-white p-6 rounded-2xl shadow-md">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold">{t.announcements}</h2>
-                <button
-                  onClick={() => setShowModal('announcement')}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors"
-                >
-                  {t.addAnnouncement}
-                </button>
+                {isManager && (
+                  <button
+                    onClick={() => setShowModal('announcement')}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors"
+                  >
+                    {t.addAnnouncement}
+                  </button>
+                )}
               </div>
               <ul className="space-y-4">
                 {announcements.length === 0 ? (
@@ -412,12 +414,14 @@ const App = () => {
             <div className="bg-white p-6 rounded-2xl shadow-md">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold">{t.pqrs}</h2>
-                <button
-                  onClick={() => setShowModal('pqr')}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors"
-                >
-                  {t.createPQR}
-                </button>
+                {isManager && (
+                  <button
+                    onClick={() => setShowModal('pqr')}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors"
+                  >
+                    {t.createPQR}
+                  </button>
+                )}
               </div>
               <ul className="space-y-4">
                 {pqrs.length === 0 ? (
@@ -453,12 +457,14 @@ const App = () => {
             <div className="bg-white p-6 rounded-2xl shadow-md">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold">{t.documents}</h2>
-                <button
-                  onClick={() => setShowModal('document')}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors"
-                >
-                  {t.uploadDocument}
-                </button>
+                {isManager && (
+                  <button
+                    onClick={() => setShowModal('document')}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors"
+                  >
+                    {t.uploadDocument}
+                  </button>
+                )}
               </div>
               <ul className="space-y-4">
                 {documents.length === 0 ? (
@@ -486,7 +492,7 @@ const App = () => {
         </main>
 
         {/* Modals for creating new items */}
-        {showModal === 'announcement' && (
+        {isManager && showModal === 'announcement' && (
           <Modal title={t.modal.createAnnouncement} onClose={() => setShowModal(null)}>
             <form onSubmit={handleAddAnnouncement} className="space-y-4">
               <div>
@@ -527,7 +533,7 @@ const App = () => {
           </Modal>
         )}
 
-        {showModal === 'pqr' && (
+        {isManager && showModal === 'pqr' && (
           <Modal title={t.modal.createPQR} onClose={() => setShowModal(null)}>
             <form onSubmit={handleAddPQR} className="space-y-4">
               <div>
@@ -568,7 +574,7 @@ const App = () => {
           </Modal>
         )}
 
-        {showModal === 'document' && (
+        {isManager && showModal === 'document' && (
           <Modal title={t.modal.uploadDocument} onClose={() => setShowModal(null)}>
             <form onSubmit={handleAddDocument} className="space-y-4">
               <div>
@@ -609,7 +615,6 @@ const App = () => {
             </form>
           </Modal>
         )}
-
       </div>
     </div>
   );
