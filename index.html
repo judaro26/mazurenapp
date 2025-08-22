@@ -1,18 +1,28 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Building Manager App</title>
-    <!-- The following script tag is for loading the Tailwind CSS library directly. -->
-    <!-- It's ideal for quick demos and development. For production, you would typically use a build process. -->
-    <script src="https://cdn.tailwindcss.com"></script>
-  </head>
-  <body>
-    <!-- The root element where our React app will be mounted -->
-    <div id="root"></div>
-    <!-- This script tag references the main JavaScript file of our React application -->
-    <!-- The type="module" attribute is essential for modern JS module-based development -->
-    <script type="module" src="/src/code.jsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Building Manager App</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- ✅ Inject Firebase config -->
+  <script>
+    window.__firebase_config = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+    window.__app_id = "my-building-app"; // Optional
+  </script>
+
+  <!-- ✅ Load React app -->
+  <script type="module" src="/src/code.jsx"></script>
+</body>
 </html>
