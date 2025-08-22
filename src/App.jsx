@@ -409,7 +409,12 @@ const App = () => {
 
           <div className="flex justify-center mb-6">
             <button
-              onClick={() => setLoginMode('resident')}
+              onClick={() => {
+                setLoginMode('resident');
+                setLoginError('');
+                setEmail('');
+                setPassword('');
+              }}
               className={`px-6 py-2 rounded-full font-semibold transition-colors duration-200 ${
                 loginMode === 'resident' ? 'bg-blue-600 text-white shadow' : 'bg-gray-200 text-gray-600'
               }`}
@@ -417,7 +422,12 @@ const App = () => {
               Resident
             </button>
             <button
-              onClick={() => setLoginMode('manager')}
+              onClick={() => {
+                setLoginMode('manager');
+                setLoginError('');
+                setEmail('');
+                setPassword('');
+              }}
               className={`ml-2 px-6 py-2 rounded-full font-semibold transition-colors duration-200 ${
                 loginMode === 'manager' ? 'bg-blue-600 text-white shadow' : 'bg-gray-200 text-gray-600'
               }`}
