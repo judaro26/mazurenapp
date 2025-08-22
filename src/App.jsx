@@ -155,7 +155,6 @@ const App = () => {
     const initializeFirebase = async () => {
       let firebaseConfig = null;
       try {
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         if (typeof __firebase_config !== 'undefined' && __firebase_config) {
           firebaseConfig = JSON.parse(__firebase_config);
         }
@@ -175,6 +174,7 @@ const App = () => {
         setDb(dbInstance);
 
         const unsubscribe = onAuthStateChanged(authInstance, async (user) => {
+          const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
           if (user) {
             setUserId(user.uid);
             setIsLoggedIn(true);
@@ -187,7 +187,8 @@ const App = () => {
               setIsManager(userDocSnap.data().isManager || false);
             } else {
               // Create user document if it doesn't exist (for standard users)
-              await setDoc(userDocRef, { isManager: false, email: user.email });
+              // Note: For anonymous users, email will be null.
+              await setDoc(userDocRef, { isManager: false, email: user.email || 'anonymous' });
               setIsManager(false);
             }
             
