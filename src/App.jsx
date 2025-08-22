@@ -332,6 +332,7 @@ const App = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
+    if (!auth) return; // Check if auth is available
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
@@ -341,6 +342,7 @@ const App = () => {
   };
 
   const handleStandardLogin = async () => {
+    if (!auth) return; // Check if auth is available
     try {
       await signInAnonymously(auth);
     } catch (error) {
@@ -349,6 +351,7 @@ const App = () => {
   };
 
   const handleLogout = async () => {
+    if (!auth) return; // Check if auth is available
     try {
       await signOut(auth);
     } catch (error) {
