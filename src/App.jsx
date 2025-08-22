@@ -3,6 +3,92 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithCustomToken, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { getFirestore, doc, addDoc, onSnapshot, collection, query, serverTimestamp, orderBy } from 'firebase/firestore';
 
+// Language content object
+const translations = {
+  en: {
+    appTitle: "Building Manager",
+    appSubtitle: "Lightweight app for building management",
+    loggedInAs: "Logged in as:",
+    announcements: "Announcements",
+    pqrs: "PQRs",
+    documents: "Documents",
+    addAnnouncement: "+ Add New",
+    createPQR: "+ Create New",
+    uploadDocument: "+ Upload New",
+    noAnnouncements: "No announcements yet.",
+    noPqrs: "No PQRs submitted yet.",
+    noDocuments: "No documents uploaded yet.",
+    posted: "Posted:",
+    submitted: "Submitted:",
+    uploaded: "Uploaded:",
+    viewDocument: "View Document",
+    openStatus: "Open",
+    inProgressStatus: "In Progress",
+    closedStatus: "Closed",
+    modal: {
+      createAnnouncement: "Create New Announcement",
+      title: "Title",
+      body: "Body",
+      announcementPlaceholder: "e.g., Water shut-off notice",
+      announcementBodyPlaceholder: "e.g., Please be advised that water will be turned off from...",
+      publish: "Publish",
+      createPQR: "Create New PQR",
+      pqrPlaceholder: "e.g., Noise complaint from unit 10B",
+      pqrBodyPlaceholder: "e.g., The residents of unit 10B have been playing loud music...",
+      submit: "Submit",
+      uploadDocument: "Upload New Document",
+      documentName: "Document Name",
+      documentNamePlaceholder: "e.g., 2024 Annual Budget",
+      documentUrl: "Document URL",
+      documentUrlPlaceholder: "e.g., https://example.com/budget.pdf",
+      upload: "Upload",
+      cancel: "Cancel",
+    },
+    loading: "Loading..."
+  },
+  es: {
+    appTitle: "Administrador de Edificio",
+    appSubtitle: "Aplicación ligera para la gestión de edificios",
+    loggedInAs: "Conectado como:",
+    announcements: "Anuncios",
+    pqrs: "PQRs",
+    documents: "Documentos",
+    addAnnouncement: "+ Añadir Nuevo",
+    createPQR: "+ Crear Nuevo",
+    uploadDocument: "+ Subir Nuevo",
+    noAnnouncements: "Aún no hay anuncios.",
+    noPqrs: "Aún no se han enviado PQRs.",
+    noDocuments: "Aún no se han subido documentos.",
+    posted: "Publicado:",
+    submitted: "Enviado:",
+    uploaded: "Subido:",
+    viewDocument: "Ver Documento",
+    openStatus: "Abierto",
+    inProgressStatus: "En Progreso",
+    closedStatus: "Cerrado",
+    modal: {
+      createAnnouncement: "Crear Nuevo Anuncio",
+      title: "Título",
+      body: "Cuerpo",
+      announcementPlaceholder: "ej., Aviso de corte de agua",
+      announcementBodyPlaceholder: "ej., Por favor, tenga en cuenta que el agua se cortará desde...",
+      publish: "Publicar",
+      createPQR: "Crear Nuevo PQR",
+      pqrPlaceholder: "ej., Queja por ruido de la unidad 10B",
+      pqrBodyPlaceholder: "ej., Los residentes de la unidad 10B han estado poniendo música alta...",
+      submit: "Enviar",
+      uploadDocument: "Subir Nuevo Documento",
+      documentName: "Nombre del Documento",
+      documentNamePlaceholder: "ej., Presupuesto Anual 2024",
+      documentUrl: "URL del Documento",
+      documentUrlPlaceholder: "ej., https://example.com/presupuesto.pdf",
+      upload: "Subir",
+      cancel: "Cancelar",
+    },
+    loading: "Cargando..."
+  }
+};
+
 // Main App component
 const App = () => {
   // State for Firebase services and user data
@@ -19,6 +105,8 @@ const App = () => {
   const [pqrs, setPqrs] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [showModal, setShowModal] = useState(null); // 'announcement', 'pqr', 'document'
+  const [language, setLanguage] = useState('en'); // 'en' or 'es'
+  const t = translations[language];
 
   // Refs for forms to clear inputs
   const announcementTitleRef = useRef(null);
@@ -228,7 +316,7 @@ const App = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-100">
-        <div className="text-gray-500 text-lg">Loading...</div>
+        <div className="text-gray-500 text-lg">{t.loading}</div>
       </div>
     );
   }
@@ -240,12 +328,20 @@ const App = () => {
         {/* Header and User Info */}
         <header className="flex flex-col sm:flex-row justify-between items-center mb-6 p-4 bg-white rounded-2xl shadow-sm">
           <div className="flex-1 text-center sm:text-left mb-4 sm:mb-0">
-            <h1 className="text-3xl font-extrabold text-blue-600">Building Manager</h1>
-            <p className="text-sm text-gray-500 mt-1">Lightweight app for building management</p>
+            <h1 className="text-3xl font-extrabold text-blue-600">{t.appTitle}</h1>
+            <p className="text-sm text-gray-500 mt-1">{t.appSubtitle}</p>
           </div>
           <div className="text-center sm:text-right">
-            <p className="text-sm text-gray-600">Logged in as:</p>
+            <p className="text-sm text-gray-600">{t.loggedInAs}</p>
             <p className="font-mono text-xs break-all mt-1">{userId}</p>
+            <div className="flex justify-center sm:justify-end mt-2">
+              <button
+                onClick={() => setLanguage(language === 'en' ? 'es' : 'en')}
+                className="bg-gray-200 text-gray-800 px-3 py-1 rounded-full text-xs font-semibold hover:bg-gray-300 transition-colors"
+              >
+                {language === 'en' ? 'Español' : 'English'}
+              </button>
+            </div>
           </div>
         </header>
 
@@ -257,7 +353,7 @@ const App = () => {
               view === 'announcements' ? 'bg-blue-600 text-white shadow' : 'text-gray-600 hover:bg-gray-200'
             }`}
           >
-            Announcements
+            {t.announcements}
           </button>
           <button
             onClick={() => setView('pqrs')}
@@ -265,7 +361,7 @@ const App = () => {
               view === 'pqrs' ? 'bg-blue-600 text-white shadow' : 'text-gray-600 hover:bg-gray-200'
             }`}
           >
-            PQRs
+            {t.pqrs}
           </button>
           <button
             onClick={() => setView('documents')}
@@ -273,7 +369,7 @@ const App = () => {
               view === 'documents' ? 'bg-blue-600 text-white shadow' : 'text-gray-600 hover:bg-gray-200'
             }`}
           >
-            Documents
+            {t.documents}
           </button>
         </nav>
 
@@ -283,24 +379,24 @@ const App = () => {
           {view === 'announcements' && (
             <div className="bg-white p-6 rounded-2xl shadow-md">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold">Announcements</h2>
+                <h2 className="text-2xl font-bold">{t.announcements}</h2>
                 <button
                   onClick={() => setShowModal('announcement')}
                   className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors"
                 >
-                  + Add New
+                  {t.addAnnouncement}
                 </button>
               </div>
               <ul className="space-y-4">
                 {announcements.length === 0 ? (
-                  <li className="text-gray-500 italic text-center py-4">No announcements yet.</li>
+                  <li className="text-gray-500 italic text-center py-4">{t.noAnnouncements}</li>
                 ) : (
                   announcements.map((announcement) => (
                     <li key={announcement.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200">
                       <h3 className="text-xl font-semibold">{announcement.title}</h3>
                       <p className="text-gray-700 mt-2 whitespace-pre-wrap">{announcement.body}</p>
                       <p className="text-sm text-gray-400 mt-2">
-                        Posted: {announcement.createdAt?.toDate().toLocaleDateString('en-US', {
+                        {t.posted} {announcement.createdAt?.toDate().toLocaleDateString('en-US', {
                           year: 'numeric', month: 'long', day: 'numeric'
                         })}
                       </p>
@@ -315,17 +411,17 @@ const App = () => {
           {view === 'pqrs' && (
             <div className="bg-white p-6 rounded-2xl shadow-md">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold">PQRs</h2>
+                <h2 className="text-2xl font-bold">{t.pqrs}</h2>
                 <button
                   onClick={() => setShowModal('pqr')}
                   className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors"
                 >
-                  + Create New
+                  {t.createPQR}
                 </button>
               </div>
               <ul className="space-y-4">
                 {pqrs.length === 0 ? (
-                  <li className="text-gray-500 italic text-center py-4">No PQRs submitted yet.</li>
+                  <li className="text-gray-500 italic text-center py-4">{t.noPqrs}</li>
                 ) : (
                   pqrs.map((pqr) => (
                     <li key={pqr.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200">
@@ -336,12 +432,12 @@ const App = () => {
                           pqr.status === 'In Progress' ? 'bg-yellow-200 text-yellow-800' :
                           'bg-green-200 text-green-800'
                         }`}>
-                          {pqr.status}
+                          {pqr.status === 'Open' ? t.openStatus : pqr.status === 'In Progress' ? t.inProgressStatus : t.closedStatus}
                         </span>
                       </div>
                       <p className="text-gray-700 mt-2 whitespace-pre-wrap">{pqr.body}</p>
                       <p className="text-sm text-gray-400 mt-2">
-                        Submitted: {pqr.createdAt?.toDate().toLocaleDateString('en-US', {
+                        {t.submitted} {pqr.createdAt?.toDate().toLocaleDateString('en-US', {
                           year: 'numeric', month: 'long', day: 'numeric'
                         })}
                       </p>
@@ -356,30 +452,30 @@ const App = () => {
           {view === 'documents' && (
             <div className="bg-white p-6 rounded-2xl shadow-md">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold">Documents</h2>
+                <h2 className="text-2xl font-bold">{t.documents}</h2>
                 <button
                   onClick={() => setShowModal('document')}
                   className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors"
                 >
-                  + Upload New
+                  {t.uploadDocument}
                 </button>
               </div>
               <ul className="space-y-4">
                 {documents.length === 0 ? (
-                  <li className="text-gray-500 italic text-center py-4">No documents uploaded yet.</li>
+                  <li className="text-gray-500 italic text-center py-4">{t.noDocuments}</li>
                 ) : (
                   documents.map((doc) => (
-                    <li key={doc.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex flex-col sm:flex-row justify-content-between">
+                    <li key={doc.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center">
                       <div className="flex-1">
                         <h3 className="text-xl font-semibold">{doc.name}</h3>
                         <p className="text-sm text-gray-400 mt-1">
-                          Uploaded: {doc.createdAt?.toDate().toLocaleDateString('en-US', {
+                          {t.uploaded} {doc.createdAt?.toDate().toLocaleDateString('en-US', {
                             year: 'numeric', month: 'long', day: 'numeric'
                           })}
                         </p>
                       </div>
                       <a href={doc.url} target="_blank" rel="noopener noreferrer" className="mt-2 sm:mt-0 bg-gray-200 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-300 transition-colors inline-block">
-                        View Document
+                        {t.viewDocument}
                       </a>
                     </li>
                   ))
@@ -391,24 +487,24 @@ const App = () => {
 
         {/* Modals for creating new items */}
         {showModal === 'announcement' && (
-          <Modal title="Create New Announcement" onClose={() => setShowModal(null)}>
+          <Modal title={t.modal.createAnnouncement} onClose={() => setShowModal(null)}>
             <form onSubmit={handleAddAnnouncement} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Title</label>
+                <label className="block text-sm font-medium mb-1">{t.modal.title}</label>
                 <input
                   type="text"
                   ref={announcementTitleRef}
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="e.g., Water shut-off notice"
+                  placeholder={t.modal.announcementPlaceholder}
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Body</label>
+                <label className="block text-sm font-medium mb-1">{t.modal.body}</label>
                 <textarea
                   ref={announcementBodyRef}
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 h-32 resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="e.g., Please be advised that water will be turned off from..."
+                  placeholder={t.modal.announcementBodyPlaceholder}
                   required
                 ></textarea>
               </div>
@@ -418,13 +514,13 @@ const App = () => {
                   onClick={() => setShowModal(null)}
                   className="bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
                 >
-                  Cancel
+                  {t.modal.cancel}
                 </button>
                 <button
                   type="submit"
                   className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors"
                 >
-                  Publish
+                  {t.modal.publish}
                 </button>
               </div>
             </form>
@@ -432,24 +528,24 @@ const App = () => {
         )}
 
         {showModal === 'pqr' && (
-          <Modal title="Create New PQR" onClose={() => setShowModal(null)}>
+          <Modal title={t.modal.createPQR} onClose={() => setShowModal(null)}>
             <form onSubmit={handleAddPQR} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Title</label>
+                <label className="block text-sm font-medium mb-1">{t.modal.title}</label>
                 <input
                   type="text"
                   ref={pqrTitleRef}
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="e.g., Noise complaint from unit 10B"
+                  placeholder={t.modal.pqrPlaceholder}
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Description</label>
+                <label className="block text-sm font-medium mb-1">{t.modal.body}</label>
                 <textarea
                   ref={pqrBodyRef}
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 h-32 resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="e.g., The residents of unit 10B have been playing loud music..."
+                  placeholder={t.modal.pqrBodyPlaceholder}
                   required
                 ></textarea>
               </div>
@@ -459,13 +555,13 @@ const App = () => {
                   onClick={() => setShowModal(null)}
                   className="bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
                 >
-                  Cancel
+                  {t.modal.cancel}
                 </button>
                 <button
                   type="submit"
                   className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors"
                 >
-                  Submit
+                  {t.modal.submit}
                 </button>
               </div>
             </form>
@@ -473,25 +569,25 @@ const App = () => {
         )}
 
         {showModal === 'document' && (
-          <Modal title="Upload New Document" onClose={() => setShowModal(null)}>
+          <Modal title={t.modal.uploadDocument} onClose={() => setShowModal(null)}>
             <form onSubmit={handleAddDocument} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Document Name</label>
+                <label className="block text-sm font-medium mb-1">{t.modal.documentName}</label>
                 <input
                   type="text"
                   ref={documentNameRef}
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="e.g., 2024 Annual Budget"
+                  placeholder={t.modal.documentNamePlaceholder}
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Document URL</label>
+                <label className="block text-sm font-medium mb-1">{t.modal.documentUrl}</label>
                 <input
                   type="url"
                   ref={documentUrlRef}
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="e.g., https://example.com/budget.pdf"
+                  placeholder={t.modal.documentUrlPlaceholder}
                   required
                 />
               </div>
@@ -501,13 +597,13 @@ const App = () => {
                   onClick={() => setShowModal(null)}
                   className="bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
                 >
-                  Cancel
+                  {t.modal.cancel}
                 </button>
                 <button
                   type="submit"
                   className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors"
                 >
-                  Upload
+                  {t.modal.upload}
                 </button>
               </div>
             </form>
