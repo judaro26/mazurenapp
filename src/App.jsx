@@ -153,12 +153,14 @@ const App = () => {
   // Initialize Firebase and set up authentication on component mount
   useEffect(() => {
     const initializeFirebase = async () => {
+      let firebaseConfig = null;
       try {
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+          firebaseConfig = JSON.parse(__firebase_config);
+        }
 
-        if (!firebaseConfig) {
+        if (!firebaseConfig || Object.keys(firebaseConfig).length === 0) {
           console.error("Firebase config is missing.");
           setLoading(false);
           return;
@@ -459,12 +461,50 @@ const App = () => {
           )}
 
           {loginMode === 'resident' && (
-            <button
-              onClick={handleStandardLogin}
-              className="w-full bg-purple-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-purple-700 transition-colors"
-            >
-              {t.login.residentLogin}
-            </button>
+            <>
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t.login.emailLabel}</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder={t.login.emailPlaceholder}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t.login.passwordLabel}</label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder={t.login.passwordPlaceholder}
+                    required
+                  />
+                  {loginError && <p className="text-red-500 text-xs mt-2">{loginError}</p>}
+                </div>
+                <button
+                  type="submit"
+                  className="w-full bg-purple-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-purple-700 transition-colors"
+                >
+                  {t.login.loginButton}
+                </button>
+              </form>
+              <div className="relative flex py-4 items-center">
+                <div className="flex-grow border-t border-gray-300"></div>
+                <span className="flex-shrink mx-4 text-gray-500 text-sm">or</span>
+                <div className="flex-grow border-t border-gray-300"></div>
+              </div>
+              <button
+                onClick={handleStandardLogin}
+                className="w-full bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
+              >
+                {t.login.continueButton}
+              </button>
+            </>
           )}
         </div>
       </div>
