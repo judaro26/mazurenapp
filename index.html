@@ -1,28 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Building Manager App</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body>
-  <div id="root"></div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Building Manager App – Manage announcements, PQRs, and documents for your building." />
+    <meta name="theme-color" content="#4f46e5" />
+    <title>Building Manager App</title>
+    <link rel="icon" href="/favicon.ico" />
 
-  <!-- ✅ Inject Firebase config -->
-  <script>
-    window.__firebase_config = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_PROJECT.firebaseapp.com",
-      projectId: "YOUR_PROJECT_ID",
-      storageBucket: "YOUR_PROJECT.appspot.com",
-      messagingSenderId: "YOUR_SENDER_ID",
-      appId: "YOUR_APP_ID"
-    };
-    window.__app_id = "my-building-app"; // Optional
-  </script>
+    <!-- Tailwind CSS via CDN (simple for now) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-gray-50 text-gray-800">
+    <!-- Loading screen -->
+    <div id="loading" class="flex items-center justify-center h-screen">
+      <div class="text-center">
+        <div class="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+        <p class="mt-4 text-gray-600">Loading...</p>
+      </div>
+    </div>
 
-  <!-- ✅ Load React app -->
-  <script type="module" src="/src/code.jsx"></script>
-</body>
+    <!-- React root -->
+    <div id="root" class="hidden"></div>
+
+    <!-- React bundle -->
+    <script type="module">
+      // When React mounts, hide loading and show root
+      const rootDiv = document.getElementById('root');
+      const loadingDiv = document.getElementById('loading');
+      rootDiv.classList.remove('hidden');
+      loadingDiv.style.display = 'none';
+    </script>
+    <script type="module" src="/src/code.jsx"></script>
+  </body>
 </html>
