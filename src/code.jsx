@@ -19,5 +19,12 @@ root.render(
   </React.StrictMode>
 );
 
+console.log("Firebase Env Check:", {
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID
+});
+
+
 // Once React is mounted, hide the loading spinner
 hideLoadingScreen();
