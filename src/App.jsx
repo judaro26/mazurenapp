@@ -1,9 +1,31 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, signInAnonymously } from 'firebase/auth';
-import { getFirestore, doc, addDoc, onSnapshot, collection, query, serverTimestamp, orderBy, getDoc, setDoc } from 'firebase/firestore';
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { initializeApp, getApps, getApp } from "firebase/app";
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+  signOut,
+  signInAnonymously,
+} from "firebase/auth";
+import {
+  getFirestore,
+  doc,
+  addDoc,
+  onSnapshot,
+  collection,
+  query,
+  serverTimestamp,
+  orderBy,
+  getDoc,
+  setDoc,
+  updateDoc,
+} from "firebase/firestore";
 
-// Language content object
+/**
+ * ----------------------------------------------
+ * Translations
+ * ----------------------------------------------
+ */
 const translations = {
   en: {
     appTitle: "Building Manager",
@@ -30,11 +52,13 @@ const translations = {
       title: "Title",
       body: "Body",
       announcementPlaceholder: "e.g., Water shut-off notice",
-      announcementBodyPlaceholder: "e.g., Please be advised that water will be turned off from...",
+      announcementBodyPlaceholder:
+        "e.g., Please be advised that water will be turned off from...",
       publish: "Publish",
       createPQR: "Create New PQR",
       pqrPlaceholder: "e.g., Noise complaint from unit 10B",
-      pqrBodyPlaceholder: "e.g., The residents of unit 10B have been playing loud music...",
+      pqrBodyPlaceholder:
+        "e.g., The residents of unit 10B have been playing loud music...",
       submit: "Submit",
       uploadDocument: "Upload New Document",
       documentName: "Document Name",
@@ -57,8 +81,21 @@ const translations = {
       continueButton: "Continue as Standard User",
       invalidCredentials: "Invalid email or password. Please try again.",
       residentLogin: "Resident Login",
-      managerLogin: "Manager Login"
-    }
+      managerLogin: "Manager Login",
+    },
+    configMissing: {
+      title: "Missing Firebase configuration",
+      desc:
+        "We couldn't find Firebase config. Provide it via a global __firebase_config object, or REACT_APP_* env vars at build time.",
+      how: "How to fix",
+      opt1Title: "Option A: Inject __firebase_config",
+      opt1Desc:
+        "Add a <script> before your bundle that sets window.__firebase_config = {...}.",
+      opt2Title: "Option B: Netlify env vars",
+      opt2Desc:
+        "Set REACT_APP_FIREBASE_* variables in Site settings → Build & deploy → Environment. Then redeploy.",
+      required: "Required keys: apiKey, authDomain, projectId, appId",
+    },
   },
   es: {
     appTitle: "Administrador de Edificio",
@@ -85,11 +122,13 @@ const translations = {
       title: "Título",
       body: "Cuerpo",
       announcementPlaceholder: "ej., Aviso de corte de agua",
-      announcementBodyPlaceholder: "ej., Por favor, tenga en cuenta que el agua se cortará desde...",
+      announcementBodyPlaceholder:
+        "ej., Por favor, tenga en cuenta que el agua se cortará desde...",
       publish: "Publicar",
       createPQR: "Crear Nuevo PQR",
       pqrPlaceholder: "ej., Queja por ruido de la unidad 10B",
-      pqrBodyPlaceholder: "ej., Los residentes de la unidad 10B han estado poniendo música alta...",
+      pqrBodyPlaceholder:
+        "ej., Los residentes de la unidad 10B han estado poniendo música alta...",
       submit: "Enviar",
       uploadDocument: "Subir Nuevo Documento",
       documentName: "Nombre del Documento",
@@ -110,39 +149,123 @@ const translations = {
       loginButton: "Iniciar sesión",
       logoutButton: "Cerrar sesión",
       continueButton: "Continuar como usuario estándar",
-      invalidCredentials: "Correo electrónico o contraseña incorrectos. Por favor, inténtelo de nuevo.",
+      invalidCredentials:
+        "Correo electrónico o contraseña incorrectos. Por favor, inténtelo de nuevo.",
       residentLogin: "Iniciar sesión como residente",
-      managerLogin: "Iniciar sesión como administrador"
-    }
-  }
+      managerLogin: "Iniciar sesión como administrador",
+    },
+    configMissing: {
+      title: "Falta la configuración de Firebase",
+      desc:
+        "No encontramos la configuración de Firebase. Proporciónela mediante __firebase_config o variables REACT_APP_* al compilar.",
+      how: "Cómo solucionarlo",
+      opt1Title: "Opción A: Inyectar __firebase_config",
+      opt1Desc:
+        "Agregue un <script> antes de su bundle que defina window.__firebase_config = {...}.",
+      opt2Title: "Opción B: Variables de entorno en Netlify",
+      opt2Desc:
+        "Configure las variables REACT_APP_FIREBASE_* en Configuración del sitio → Build & deploy → Environment. Luego vuelva a desplegar.",
+      required: "Claves requeridas: apiKey, authDomain, projectId, appId",
+    },
+  },
 };
 
-// Main App component
-const App = () => {
-  // State for Firebase services and user data
-  const [firebaseApp, setFirebaseApp] = useState(null);
-  const [db, setDb] = useState(null);
+/**
+ * ----------------------------------------------
+ * Helpers
+ * ----------------------------------------------
+ */
+function safeJsonParse(value) {
+  try {
+    return typeof value === "string" ? JSON.parse(value) : value;
+  } catch {
+    return null;
+  }
+}
+
+function loadFirebaseConfig() {
+  // 1) Prefer a global window.__firebase_config (can be a JSON string or object)
+  const globalCfg = typeof window !== "undefined" ? safeJsonParse(window.__firebase_config) : null;
+  if (globalCfg && typeof globalCfg === "object") return globalCfg;
+
+  // 2) Fall back to build-time env vars (Netlify, CRA): REACT_APP_*
+  const cfg = {
+    apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+    authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+    storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.REACT_APP_FIREBASE_APP_ID,
+  };
+  const required = ["apiKey", "authDomain", "projectId", "appId"];
+  const hasRequired = required.every((k) => cfg[k]);
+  return hasRequired ? cfg : null;
+}
+
+function formatTimestamp(ts) {
+  // Firestore Timestamp or Date or null
+  try {
+    const date = ts?.toDate ? ts.toDate() : ts instanceof Date ? ts : null;
+    if (!date) return "";
+    return date.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * ----------------------------------------------
+ * Main App
+ * ----------------------------------------------
+ */
+export default function App() {
+  // Language
+  const [language, setLanguage] = useState(() => localStorage.getItem("language") || "en");
+  const t = translations[language] || translations.en;
+  const toggleLanguage = () => {
+    const next = language === "en" ? "es" : "en";
+    setLanguage(next);
+    localStorage.setItem("language", next);
+  };
+
+  // Firebase singleton init (memoized)
+  const firebaseConfig = useMemo(loadFirebaseConfig, []);
+  const [configError, setConfigError] = useState(!firebaseConfig);
+
+  const appId = useMemo(() => {
+    const candidate =
+      (typeof window !== "undefined" && window.__app_id) ||
+      process.env.REACT_APP_APP_ID ||
+      "default-app-id";
+    return String(candidate);
+  }, []);
+
+  const [app, setApp] = useState(null);
   const [auth, setAuth] = useState(null);
+  const [db, setDb] = useState(null);
+
   const [userId, setUserId] = useState(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isManager, setIsManager] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loginError, setLoginError] = useState('');
-  const [loginMode, setLoginMode] = useState('resident');
 
-  // State for the UI
-  const [view, setView] = useState('announcements');
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  // UI State
+  const [view, setView] = useState("announcements");
   const [announcements, setAnnouncements] = useState([]);
   const [pqrs, setPqrs] = useState([]);
   const [documents, setDocuments] = useState([]);
-  const [showModal, setShowModal] = useState(null);
-  const [language, setLanguage] = useState('en');
-  const t = translations[language];
+  const [showModal, setShowModal] = useState(null); // 'announcement' | 'pqr' | 'document'
 
-  // Refs for forms to clear inputs
+  // Login form
+  const [loginMode, setLoginMode] = useState("resident");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+
+  // Refs
   const announcementTitleRef = useRef(null);
   const announcementBodyRef = useRef(null);
   const pqrTitleRef = useRef(null);
@@ -150,124 +273,121 @@ const App = () => {
   const documentNameRef = useRef(null);
   const documentUrlRef = useRef(null);
 
-  // Initialize Firebase and set up authentication on component mount
+  /**
+   * Init Firebase (once)
+   */
   useEffect(() => {
-    const initializeFirebase = async () => {
-      let firebaseConfig = null;
+    (async () => {
       try {
-        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-          firebaseConfig = JSON.parse(__firebase_config);
-        }
-
-        if (!firebaseConfig || Object.keys(firebaseConfig).length === 0) {
-          console.error("Firebase config is missing.");
+        if (!firebaseConfig) {
+          setConfigError(true);
           setLoading(false);
           return;
         }
-
-        const app = initializeApp(firebaseConfig);
-        const authInstance = getAuth(app);
-        const dbInstance = getFirestore(app);
-
-        setFirebaseApp(app);
+        const appInstance = getApps().length ? getApp() : initializeApp(firebaseConfig);
+        const authInstance = getAuth(appInstance);
+        const dbInstance = getFirestore(appInstance);
+        setApp(appInstance);
         setAuth(authInstance);
         setDb(dbInstance);
 
-        const unsubscribe = onAuthStateChanged(authInstance, async (user) => {
-          const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-          if (user) {
-            setUserId(user.uid);
-            setIsLoggedIn(true);
+        const unsub = onAuthStateChanged(authInstance, async (user) => {
+          try {
+            if (user) {
+              setUserId(user.uid);
+              setIsLoggedIn(true);
 
-            // Fetch user role from Firestore
-            const userDocRef = doc(dbInstance, `artifacts/${appId}/public/data/users`, user.uid);
-            const userDocSnap = await getDoc(userDocRef);
+              // Role doc
+              const userDocRef = doc(dbInstance, `artifacts/${appId}/public/data/users`, user.uid);
+              const snap = await getDoc(userDocRef);
+              if (snap.exists()) {
+                setIsManager(Boolean(snap.data()?.isManager));
+              } else {
+                await setDoc(userDocRef, { isManager: false, email: user.email || "anonymous" });
+                setIsManager(false);
+              }
 
-            if (userDocSnap.exists()) {
-              setIsManager(userDocSnap.data().isManager || false);
+              setIsAuthReady(true);
+              setLoading(false);
             } else {
-              // Create user document if it doesn't exist (for standard users)
-              // Note: For anonymous users, email will be null.
-              await setDoc(userDocRef, { isManager: false, email: user.email || 'anonymous' });
+              setUserId(null);
+              setIsLoggedIn(false);
               setIsManager(false);
+              setIsAuthReady(true);
+              setLoading(false);
             }
-            
-            setIsAuthReady(true);
-            setLoading(false);
-          } else {
-            setUserId(null);
-            setIsLoggedIn(false);
-            setIsManager(false);
-            setIsAuthReady(true);
+          } catch (err) {
+            console.error("Auth state change error:", err);
+            setErrorMsg("Failed to load user profile.");
             setLoading(false);
           }
         });
 
-        return () => unsubscribe();
-      } catch (error) {
-        console.error("Error initializing Firebase:", error);
+        return () => unsub();
+      } catch (err) {
+        console.error("Error initializing Firebase:", err);
+        setErrorMsg("Failed to initialize Firebase.");
         setLoading(false);
       }
-    };
-
-    initializeFirebase();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Set up Firestore listeners for real-time updates
+  /**
+   * Live queries
+   */
   useEffect(() => {
     if (!db || !isAuthReady) return;
 
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
     const announcementsPath = `artifacts/${appId}/public/data/announcements`;
     const pqrsPath = `artifacts/${appId}/public/data/pqrs`;
     const documentsPath = `artifacts/${appId}/public/data/documents`;
 
+    let unsubAnnouncements = () => {};
+    let unsubPqrs = () => {};
+    let unsubDocs = () => {};
     try {
-      const announcementsQuery = query(collection(db, announcementsPath), orderBy('createdAt', 'desc'));
-      const unsubscribeAnnouncements = onSnapshot(announcementsQuery, (snapshot) => {
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setAnnouncements(data);
-      }, (error) => {
-        console.error("Error fetching announcements:", error);
-      });
+      unsubAnnouncements = onSnapshot(
+        query(collection(db, announcementsPath), orderBy("createdAt", "desc")),
+        (snap) => {
+          setAnnouncements(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        },
+        (err) => console.error("Announcements listener error:", err)
+      );
 
-      const pqrsQuery = query(collection(db, pqrsPath), orderBy('createdAt', 'desc'));
-      const unsubscribePqrs = onSnapshot(pqrsQuery, (snapshot) => {
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setPqrs(data);
-      }, (error) => {
-        console.error("Error fetching PQRs:", error);
-      });
+      unsubPqrs = onSnapshot(
+        query(collection(db, pqrsPath), orderBy("createdAt", "desc")),
+        (snap) => setPqrs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+        (err) => console.error("PQRs listener error:", err)
+      );
 
-      const documentsQuery = query(collection(db, documentsPath), orderBy('createdAt', 'desc'));
-      const unsubscribeDocuments = onSnapshot(documentsQuery, (snapshot) => {
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setDocuments(data);
-      }, (error) => {
-        console.error("Error fetching documents:", error);
-      });
-
-      return () => {
-        unsubscribeAnnouncements();
-        unsubscribePqrs();
-        unsubscribeDocuments();
-      };
-    } catch (error) {
-      console.error("Error setting up Firestore listeners:", error);
+      unsubDocs = onSnapshot(
+        query(collection(db, documentsPath), orderBy("createdAt", "desc")),
+        (snap) => setDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+        (err) => console.error("Documents listener error:", err)
+      );
+    } catch (err) {
+      console.error("Error setting up Firestore listeners:", err);
     }
-  }, [db, isAuthReady]);
 
-  // Handle adding a new announcement
+    return () => {
+      unsubAnnouncements();
+      unsubPqrs();
+      unsubDocs();
+    };
+  }, [db, isAuthReady, appId]);
+
+  /**
+   * Actions
+   */
   const handleAddAnnouncement = async (e) => {
     e.preventDefault();
     if (!db) return;
-    const title = announcementTitleRef.current.value;
-    const body = announcementBodyRef.current.value;
-
-    if (title.trim() === '' || body.trim() === '') return;
+    const title = announcementTitleRef.current?.value?.trim();
+    const body = announcementBodyRef.current?.value?.trim();
+    if (!title || !body) return;
 
     try {
-      const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
       const path = `artifacts/${appId}/public/data/announcements`;
       await addDoc(collection(db, path), {
         title,
@@ -276,51 +396,56 @@ const App = () => {
         authorId: userId,
       });
       setShowModal(null);
-      announcementTitleRef.current.value = '';
-      announcementBodyRef.current.value = '';
-    } catch (error) {
-      console.error("Error adding announcement:", error);
+      if (announcementTitleRef.current) announcementTitleRef.current.value = "";
+      if (announcementBodyRef.current) announcementBodyRef.current.value = "";
+    } catch (err) {
+      console.error("Error adding announcement:", err);
+      setErrorMsg("Couldn't add announcement.");
     }
   };
 
-  // Handle adding a new PQR
   const handleAddPQR = async (e) => {
     e.preventDefault();
     if (!db) return;
-    const title = pqrTitleRef.current.value;
-    const body = pqrBodyRef.current.value;
-
-    if (title.trim() === '' || body.trim() === '') return;
+    const title = pqrTitleRef.current?.value?.trim();
+    const body = pqrBodyRef.current?.value?.trim();
+    if (!title || !body) return;
 
     try {
-      const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
       const path = `artifacts/${appId}/public/data/pqrs`;
       await addDoc(collection(db, path), {
         title,
         body,
-        status: 'Open', // Initial status
+        status: "Open",
         createdAt: serverTimestamp(),
         authorId: userId,
       });
       setShowModal(null);
-      pqrTitleRef.current.value = '';
-      pqrBodyRef.current.value = '';
-    } catch (error) {
-      console.error("Error adding PQR:", error);
+      if (pqrTitleRef.current) pqrTitleRef.current.value = "";
+      if (pqrBodyRef.current) pqrBodyRef.current.value = "";
+    } catch (err) {
+      console.error("Error adding PQR:", err);
+      setErrorMsg("Couldn't add PQR.");
     }
   };
 
-  // Handle adding a new document
   const handleAddDocument = async (e) => {
     e.preventDefault();
     if (!db) return;
-    const name = documentNameRef.current.value;
-    const url = documentUrlRef.current.value;
+    const name = documentNameRef.current?.value?.trim();
+    const url = documentUrlRef.current?.value?.trim();
+    if (!name || !url) return;
 
-    if (name.trim() === '' || url.trim() === '') return;
+    // Basic URL validation
+    try {
+      // eslint-disable-next-line no-new
+      new URL(url);
+    } catch {
+      setErrorMsg("Please provide a valid URL.");
+      return;
+    }
 
     try {
-      const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
       const path = `artifacts/${appId}/public/data/documents`;
       await addDoc(collection(db, path), {
         name,
@@ -329,37 +454,40 @@ const App = () => {
         authorId: userId,
       });
       setShowModal(null);
-      documentNameRef.current.value = '';
-      documentUrlRef.current.value = '';
-    } catch (error) {
-      console.error("Error adding document:", error);
+      if (documentNameRef.current) documentNameRef.current.value = "";
+      if (documentUrlRef.current) documentUrlRef.current.value = "";
+    } catch (err) {
+      console.error("Error adding document:", err);
+      setErrorMsg("Couldn't add document.");
     }
   };
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setLoginError('');
+    setLoginError("");
     if (!auth) {
       setLoginError("Authentication service is not ready.");
       return;
     }
     try {
       await signInWithEmailAndPassword(auth, email, password);
-    } catch (error) {
-      console.error("Login failed:", error);
+    } catch (err) {
+      console.error("Login failed:", err);
       setLoginError(t.login.invalidCredentials);
     }
   };
 
   const handleStandardLogin = async () => {
+    setLoginError("");
     if (!auth) {
       setLoginError("Authentication service is not ready.");
       return;
     }
     try {
       await signInAnonymously(auth);
-    } catch (error) {
-      console.error("Anonymous login failed:", error);
+    } catch (err) {
+      console.error("Anonymous login failed:", err);
+      setLoginError("Anonymous login failed.");
     }
   };
 
@@ -367,20 +495,37 @@ const App = () => {
     if (!auth) return;
     try {
       await signOut(auth);
-    } catch (error) {
-      console.error("Logout failed:", error);
+    } catch (err) {
+      console.error("Logout failed:", err);
     }
   };
 
-  // Modal component for forms
-  const Modal = ({ children, title, onClose }) => (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center p-4">
+  const updatePqrStatus = async (pqrId, nextStatus) => {
+    if (!db) return;
+    try {
+      const pqrDoc = doc(db, `artifacts/${appId}/public/data/pqrs`, pqrId);
+      await updateDoc(pqrDoc, { status: nextStatus });
+    } catch (err) {
+      console.error("Failed to update PQR status:", err);
+      setErrorMsg("Couldn't update status.");
+    }
+  };
+
+  /**
+   * Modal
+   */
+  const Modal = ({ title, onClose, children }) => (
+    <div className="fixed inset-0 bg-black/40 flex justify-center items-center p-4 z-50">
       <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-lg">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-xl font-bold">{title}</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-800">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-800"
+            aria-label="Close modal"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
@@ -389,16 +534,43 @@ const App = () => {
     </div>
   );
 
-  // Render loading state
-  if (loading) {
+  /**
+   * Early error: missing config
+   */
+  if (configError) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-100">
-        <div className="text-gray-500 text-lg">{t.loading}</div>
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
+        <div className="max-w-xl bg-white rounded-2xl shadow p-6">
+          <h2 className="text-2xl font-bold mb-2">{t.configMissing.title}</h2>
+          <p className="text-gray-600 mb-4">{t.configMissing.desc}</p>
+          <ul className="list-disc pl-6 space-y-2 text-gray-700">
+            <li>
+              <span className="font-semibold">{t.configMissing.opt1Title}:</span> {t.configMissing.opt1Desc}
+            </li>
+            <li>
+              <span className="font-semibold">{t.configMissing.opt2Title}:</span> {t.configMissing.opt2Desc}
+            </li>
+          </ul>
+          <p className="text-sm text-gray-500 mt-4">{t.configMissing.required}</p>
+        </div>
       </div>
     );
   }
 
-  // Render Login Screen if not logged in
+  /**
+   * Global loading
+   */
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-100">
+        <div className="animate-pulse text-gray-500 text-lg">{t.loading}</div>
+      </div>
+    );
+  }
+
+  /**
+   * Not logged in → Auth screens
+   */
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-gray-100 font-sans text-gray-800 p-4 sm:p-6 flex items-center justify-center">
@@ -408,36 +580,40 @@ const App = () => {
             <p className="text-gray-600 mb-6">{t.login.subtitle}</p>
           </div>
 
-          <div className="flex justify-center mb-6">
+          <div className="flex justify-center mb-6" role="tablist" aria-label="Login mode">
             <button
               onClick={() => {
-                setLoginMode('resident');
-                setLoginError('');
-                setEmail('');
-                setPassword('');
+                setLoginMode("resident");
+                setLoginError("");
+                setEmail("");
+                setPassword("");
               }}
               className={`px-6 py-2 rounded-full font-semibold transition-colors duration-200 ${
-                loginMode === 'resident' ? 'bg-blue-600 text-white shadow' : 'bg-gray-200 text-gray-600'
+                loginMode === "resident" ? "bg-blue-600 text-white shadow" : "bg-gray-200 text-gray-600"
               }`}
+              role="tab"
+              aria-selected={loginMode === "resident"}
             >
               Resident
             </button>
             <button
               onClick={() => {
-                setLoginMode('manager');
-                setLoginError('');
-                setEmail('');
-                setPassword('');
+                setLoginMode("manager");
+                setLoginError("");
+                setEmail("");
+                setPassword("");
               }}
               className={`ml-2 px-6 py-2 rounded-full font-semibold transition-colors duration-200 ${
-                loginMode === 'manager' ? 'bg-blue-600 text-white shadow' : 'bg-gray-200 text-gray-600'
+                loginMode === "manager" ? "bg-blue-600 text-white shadow" : "bg-gray-200 text-gray-600"
               }`}
+              role="tab"
+              aria-selected={loginMode === "manager"}
             >
               Manager
             </button>
           </div>
 
-          {loginMode === 'manager' && (
+          {loginMode === "manager" && (
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">{t.login.emailLabel}</label>
@@ -448,6 +624,7 @@ const App = () => {
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder={t.login.emailPlaceholder}
                   required
+                  autoComplete="username"
                 />
               </div>
               <div>
@@ -459,6 +636,7 @@ const App = () => {
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder={t.login.passwordPlaceholder}
                   required
+                  autoComplete="current-password"
                 />
                 {loginError && <p className="text-red-500 text-xs mt-2">{loginError}</p>}
               </div>
@@ -471,7 +649,7 @@ const App = () => {
             </form>
           )}
 
-          {loginMode === 'resident' && (
+          {loginMode === "resident" && (
             <>
               <form onSubmit={handleLogin} className="space-y-4">
                 <div>
@@ -483,6 +661,7 @@ const App = () => {
                     className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder={t.login.emailPlaceholder}
                     required
+                    autoComplete="username"
                   />
                 </div>
                 <div>
@@ -494,6 +673,7 @@ const App = () => {
                     className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder={t.login.passwordPlaceholder}
                     required
+                    autoComplete="current-password"
                   />
                   {loginError && <p className="text-red-500 text-xs mt-2">{loginError}</p>}
                 </div>
@@ -505,9 +685,9 @@ const App = () => {
                 </button>
               </form>
               <div className="relative flex py-4 items-center">
-                <div className="flex-grow border-t border-gray-300"></div>
+                <div className="flex-grow border-t border-gray-300" />
                 <span className="flex-shrink mx-4 text-gray-500 text-sm">or</span>
-                <div className="flex-grow border-t border-gray-300"></div>
+                <div className="flex-grow border-t border-gray-300" />
               </div>
               <button
                 onClick={handleStandardLogin}
@@ -522,12 +702,13 @@ const App = () => {
     );
   }
 
-
-  // Main UI rendering
+  /**
+   * Main UI
+   */
   return (
     <div className="min-h-screen bg-gray-100 font-sans text-gray-800 p-4 sm:p-6">
       <div className="max-w-4xl mx-auto">
-        {/* Header and User Info */}
+        {/* Header */}
         <header className="flex flex-col sm:flex-row justify-between items-center mb-6 p-4 bg-white rounded-2xl shadow-sm">
           <div className="flex-1 text-center sm:text-left mb-4 sm:mb-0">
             <h1 className="text-3xl font-extrabold text-blue-600">{t.appTitle}</h1>
@@ -538,10 +719,10 @@ const App = () => {
             <p className="font-mono text-xs break-all mt-1">{userId}</p>
             <div className="flex justify-center sm:justify-end mt-2">
               <button
-                onClick={() => setLanguage(language === 'en' ? 'es' : 'en')}
+                onClick={toggleLanguage}
                 className="bg-gray-200 text-gray-800 px-3 py-1 rounded-full text-xs font-semibold hover:bg-gray-300 transition-colors"
               >
-                {language === 'en' ? 'Español' : 'English'}
+                {language === "en" ? "Español" : "English"}
               </button>
               <button
                 onClick={handleLogout}
@@ -553,44 +734,44 @@ const App = () => {
           </div>
         </header>
 
-        {/* Navigation Tabs */}
+        {/* Nav */}
         <nav className="flex items-center justify-center space-x-2 sm:space-x-4 mb-6 p-2 bg-white rounded-full shadow-sm">
           <button
-            onClick={() => setView('announcements')}
+            onClick={() => setView("announcements")}
             className={`flex-1 py-2 px-3 sm:px-4 rounded-full font-semibold transition-colors duration-200 ${
-              view === 'announcements' ? 'bg-blue-600 text-white shadow' : 'text-gray-600 hover:bg-gray-200'
+              view === "announcements" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:bg-gray-200"
             }`}
           >
             {t.announcements}
           </button>
           <button
-            onClick={() => setView('pqrs')}
+            onClick={() => setView("pqrs")}
             className={`flex-1 py-2 px-3 sm:px-4 rounded-full font-semibold transition-colors duration-200 ${
-              view === 'pqrs' ? 'bg-blue-600 text-white shadow' : 'text-gray-600 hover:bg-gray-200'
+              view === "pqrs" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:bg-gray-200"
             }`}
           >
             {t.pqrs}
           </button>
           <button
-            onClick={() => setView('documents')}
+            onClick={() => setView("documents")}
             className={`flex-1 py-2 px-3 sm:px-4 rounded-full font-semibold transition-colors duration-200 ${
-              view === 'documents' ? 'bg-blue-600 text-white shadow' : 'text-gray-600 hover:bg-gray-200'
+              view === "documents" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:bg-gray-200"
             }`}
           >
             {t.documents}
           </button>
         </nav>
 
-        {/* Content Area */}
+        {/* Content */}
         <main className="space-y-6">
-          {/* Announcements Tab */}
-          {view === 'announcements' && (
+          {/* Announcements */}
+          {view === "announcements" && (
             <div className="bg-white p-6 rounded-2xl shadow-md">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold">{t.announcements}</h2>
                 {isManager && (
                   <button
-                    onClick={() => setShowModal('announcement')}
+                    onClick={() => setShowModal("announcement")}
                     className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors"
                   >
                     {t.addAnnouncement}
@@ -601,15 +782,15 @@ const App = () => {
                 {announcements.length === 0 ? (
                   <li className="text-gray-500 italic text-center py-4">{t.noAnnouncements}</li>
                 ) : (
-                  announcements.map((announcement) => (
-                    <li key={announcement.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                      <h3 className="text-xl font-semibold">{announcement.title}</h3>
-                      <p className="text-gray-700 mt-2 whitespace-pre-wrap">{announcement.body}</p>
-                      <p className="text-sm text-gray-400 mt-2">
-                        {t.posted} {announcement.createdAt?.toDate().toLocaleDateString('en-US', {
-                          year: 'numeric', month: 'long', day: 'numeric'
-                        })}
-                      </p>
+                  announcements.map((a) => (
+                    <li key={a.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                      <h3 className="text-xl font-semibold">{a.title}</h3>
+                      <p className="text-gray-700 mt-2 whitespace-pre-wrap">{a.body}</p>
+                      {a.createdAt && (
+                        <p className="text-sm text-gray-400 mt-2">
+                          {t.posted} {formatTimestamp(a.createdAt)}
+                        </p>
+                      )}
                     </li>
                   ))
                 )}
@@ -617,14 +798,14 @@ const App = () => {
             </div>
           )}
 
-          {/* PQRs Tab */}
-          {view === 'pqrs' && (
+          {/* PQRs */}
+          {view === "pqrs" && (
             <div className="bg-white p-6 rounded-2xl shadow-md">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold">{t.pqrs}</h2>
                 {isManager && (
                   <button
-                    onClick={() => setShowModal('pqr')}
+                    onClick={() => setShowModal("pqr")}
                     className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors"
                   >
                     {t.createPQR}
@@ -635,24 +816,45 @@ const App = () => {
                 {pqrs.length === 0 ? (
                   <li className="text-gray-500 italic text-center py-4">{t.noPqrs}</li>
                 ) : (
-                  pqrs.map((pqr) => (
-                    <li key={pqr.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                      <div className="flex justify-between items-center">
-                        <h3 className="text-xl font-semibold">{pqr.title}</h3>
-                        <span className={`px-3 py-1 text-xs font-bold rounded-full ${
-                          pqr.status === 'Open' ? 'bg-red-200 text-red-800' :
-                          pqr.status === 'In Progress' ? 'bg-yellow-200 text-yellow-800' :
-                          'bg-green-200 text-green-800'
-                        }`}>
-                          {pqr.status === 'Open' ? t.openStatus : pqr.status === 'In Progress' ? t.inProgressStatus : t.closedStatus}
-                        </span>
+                  pqrs.map((p) => (
+                    <li key={p.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        <h3 className="text-xl font-semibold">{p.title}</h3>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`px-3 py-1 text-xs font-bold rounded-full ${
+                              p.status === "Open"
+                                ? "bg-red-200 text-red-800"
+                                : p.status === "In Progress"
+                                ? "bg-yellow-200 text-yellow-800"
+                                : "bg-green-200 text-green-800"
+                            }`}
+                          >
+                            {p.status === "Open"
+                              ? t.openStatus
+                              : p.status === "In Progress"
+                              ? t.inProgressStatus
+                              : t.closedStatus}
+                          </span>
+                          {isManager && (
+                            <select
+                              className="border border-gray-300 rounded-full text-xs px-2 py-1"
+                              value={p.status}
+                              onChange={(e) => updatePqrStatus(p.id, e.target.value)}
+                            >
+                              <option value="Open">{t.openStatus}</option>
+                              <option value="In Progress">{t.inProgressStatus}</option>
+                              <option value="Closed">{t.closedStatus}</option>
+                            </select>
+                          )}
+                        </div>
                       </div>
-                      <p className="text-gray-700 mt-2 whitespace-pre-wrap">{pqr.body}</p>
-                      <p className="text-sm text-gray-400 mt-2">
-                        {t.submitted} {pqr.createdAt?.toDate().toLocaleDateString('en-US', {
-                          year: 'numeric', month: 'long', day: 'numeric'
-                        })}
-                      </p>
+                      <p className="text-gray-700 mt-2 whitespace-pre-wrap">{p.body}</p>
+                      {p.createdAt && (
+                        <p className="text-sm text-gray-400 mt-2">
+                          {t.submitted} {formatTimestamp(p.createdAt)}
+                        </p>
+                      )}
                     </li>
                   ))
                 )}
@@ -660,14 +862,14 @@ const App = () => {
             </div>
           )}
 
-          {/* Documents Tab */}
-          {view === 'documents' && (
+          {/* Documents */}
+          {view === "documents" && (
             <div className="bg-white p-6 rounded-2xl shadow-md">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold">{t.documents}</h2>
                 {isManager && (
                   <button
-                    onClick={() => setShowModal('document')}
+                    onClick={() => setShowModal("document")}
                     className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors"
                   >
                     {t.uploadDocument}
@@ -678,17 +880,25 @@ const App = () => {
                 {documents.length === 0 ? (
                   <li className="text-gray-500 italic text-center py-4">{t.noDocuments}</li>
                 ) : (
-                  documents.map((doc) => (
-                    <li key={doc.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                  documents.map((d) => (
+                    <li
+                      key={d.id}
+                      className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center"
+                    >
                       <div className="flex-1">
-                        <h3 className="text-xl font-semibold">{doc.name}</h3>
-                        <p className="text-sm text-gray-400 mt-1">
-                          {t.uploaded} {doc.createdAt?.toDate().toLocaleDateString('en-US', {
-                            year: 'numeric', month: 'long', day: 'numeric'
-                          })}
-                        </p>
+                        <h3 className="text-xl font-semibold">{d.name}</h3>
+                        {d.createdAt && (
+                          <p className="text-sm text-gray-400 mt-1">
+                            {t.uploaded} {formatTimestamp(d.createdAt)}
+                          </p>
+                        )}
                       </div>
-                      <a href={doc.url} target="_blank" rel="noopener noreferrer" className="mt-2 sm:mt-0 bg-gray-200 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-300 transition-colors inline-block">
+                      <a
+                        href={d.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 sm:mt-0 bg-gray-200 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-300 transition-colors inline-block"
+                      >
                         {t.viewDocument}
                       </a>
                     </li>
@@ -699,8 +909,13 @@ const App = () => {
           )}
         </main>
 
-        {/* Modals for creating new items */}
-        {isManager && showModal === 'announcement' && (
+        {/* Global errors */}
+        {errorMsg && (
+          <div className="mt-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm">{errorMsg}</div>
+        )}
+
+        {/* Modals */}
+        {isManager && showModal === "announcement" && (
           <Modal title={t.modal.createAnnouncement} onClose={() => setShowModal(null)}>
             <form onSubmit={handleAddAnnouncement} className="space-y-4">
               <div>
@@ -720,9 +935,9 @@ const App = () => {
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 h-32 resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder={t.modal.announcementBodyPlaceholder}
                   required
-                ></textarea>
+                />
               </div>
-              <div className="flex justify-end space-x-2">
+              <div className="flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setShowModal(null)}
@@ -741,7 +956,7 @@ const App = () => {
           </Modal>
         )}
 
-        {isManager && showModal === 'pqr' && (
+        {isManager && showModal === "pqr" && (
           <Modal title={t.modal.createPQR} onClose={() => setShowModal(null)}>
             <form onSubmit={handleAddPQR} className="space-y-4">
               <div>
@@ -761,9 +976,9 @@ const App = () => {
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 h-32 resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder={t.modal.pqrBodyPlaceholder}
                   required
-                ></textarea>
+                />
               </div>
-              <div className="flex justify-end space-x-2">
+              <div className="flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setShowModal(null)}
@@ -782,7 +997,7 @@ const App = () => {
           </Modal>
         )}
 
-        {isManager && showModal === 'document' && (
+        {isManager && showModal === "document" && (
           <Modal title={t.modal.uploadDocument} onClose={() => setShowModal(null)}>
             <form onSubmit={handleAddDocument} className="space-y-4">
               <div>
@@ -805,7 +1020,7 @@ const App = () => {
                   required
                 />
               </div>
-              <div className="flex justify-end space-x-2">
+              <div className="flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setShowModal(null)}
@@ -826,6 +1041,4 @@ const App = () => {
       </div>
     </div>
   );
-};
-
-export default App;
+}
