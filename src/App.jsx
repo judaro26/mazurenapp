@@ -149,11 +149,12 @@ const App = () => {
   useEffect(() => {
     const initializeFirebase = async () => {
       try {
+        // The __app_id, __firebase_config, and __initial_auth_token variables are provided by the hosting environment.
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        if (!firebaseConfig || Object.keys(firebaseConfig).length === 0) {
+        if (!firebaseConfig) {
           console.error("Firebase config is missing.");
           setLoading(false);
           return;
@@ -167,7 +168,6 @@ const App = () => {
         setAuth(authInstance);
         setDb(dbInstance);
 
-        // Listen for auth state changes to update login status and user info
         const unsubscribe = onAuthStateChanged(authInstance, async (user) => {
           if (user) {
             setUserId(user.uid);
