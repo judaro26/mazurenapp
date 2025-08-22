@@ -1,30 +1,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App.jsx';
+import App from './App'; // Import the main App component
+import './index.css'; // Import the Tailwind CSS file
 
-// Wait until React mounts before hiding the loading screen
-function hideLoadingScreen() {
-  const loadingDiv = document.getElementById('loading');
-  if (loadingDiv) loadingDiv.style.display = 'none';
-}
-
-// Root element where React will mount
-const rootElement = document.getElementById('root');
-const root = ReactDOM.createRoot(rootElement);
-
-// Render the app and then hide loading screen
+const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
     <App />
   </React.StrictMode>
 );
-
-console.log("Firebase Env Check:", {
-  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
-  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID
-});
-
-
-// Once React is mounted, hide the loading spinner
-hideLoadingScreen();
