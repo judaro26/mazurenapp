@@ -32,7 +32,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
  */
 const translations = {
   en: {
-    appTitle: "Building Manager",
+    appTitle: "Portal Malaga Platform",
     appSubtitle: "Lightweight app for building management",
     loggedInAs: "Logged in as:",
     announcements: "Announcements",
@@ -121,7 +121,7 @@ const translations = {
     },
   },
   es: {
-    appTitle: "Administrador de Edificio",
+    appTitle: "Plataforma Portal Malaga",
     appSubtitle: "Aplicación ligera para la gestión de edificios",
     loggedInAs: "Conectado como:",
     announcements: "Anuncios",
