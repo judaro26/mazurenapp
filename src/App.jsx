@@ -78,6 +78,7 @@ const translations = {
       upload: "Upload",
       cancel: "Cancel",
       image: "Image (optional)",
+      file: "File (optional)",
     },
     loading: "Loading...",
     login: {
@@ -157,6 +158,7 @@ const translations = {
       upload: "Subir",
       cancel: "Cancelar",
       image: "Imagen (opcional)",
+      file: "Archivo (opcional)",
     },
     loading: "Cargando...",
     login: {
@@ -282,6 +284,8 @@ export default function App() {
 
   const [imageFile, setImageFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  // NEW: State for PQR file upload
+  const [pqrFile, setPqrFile] = useState(null);
 
   // NEW: State for editing items
   const [editingItem, setEditingItem] = useState(null);
@@ -466,7 +470,6 @@ export default function App() {
         break;
       case 'pqrs':
         path = `artifacts/${appId}/public/data/pqrs`;
-        // NEW: Get name and apartment number for update
         updatedData = {
           name: pqrNameRef.current?.value,
           apartment: pqrApartmentRef.current?.value,
@@ -497,23 +500,34 @@ export default function App() {
     }
   };
 
-  // NEW: Updated handleAddPQR to include name and apartment number
+  // NEW: Updated handleAddPQR to include file upload
   const handleAddPQR = async (e) => {
     e.preventDefault();
-    if (!db) return;
+    if (!db || !storage) return;
     const name = pqrNameRef.current?.value?.trim();
     const apartment = pqrApartmentRef.current?.value?.trim();
     const title = pqrTitleRef.current?.value?.trim();
     const body = pqrBodyRef.current?.value?.trim();
     if (!title || !body || !name || !apartment) return;
 
+    setUploading(true);
+    let fileUrl = null;
+
     try {
+      if (pqrFile) {
+        const storagePath = `pqrs/${userIdentifier}-${Date.now()}-${pqrFile.name}`;
+        const fileRef = ref(storage, storagePath);
+        await uploadBytes(fileRef, pqrFile);
+        fileUrl = await getDownloadURL(fileRef);
+      }
+
       const path = `artifacts/${appId}/public/data/pqrs`;
       await addDoc(collection(db, path), {
         name,
         apartment,
         title,
         body,
+        fileUrl: fileUrl, // NEW: Add fileUrl
         status: "Open",
         createdAt: serverTimestamp(),
         authorId: userIdentifier,
@@ -523,9 +537,12 @@ export default function App() {
       if (pqrApartmentRef.current) pqrApartmentRef.current.value = "";
       if (pqrTitleRef.current) pqrTitleRef.current.value = "";
       if (pqrBodyRef.current) pqrBodyRef.current.value = "";
+      setPqrFile(null); // NEW: Clear the file state
     } catch (err) {
       console.error("Error adding PQR:", err);
       setErrorMsg("Couldn't add PQR.");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -1043,6 +1060,16 @@ export default function App() {
                           {t.submitted} {formatTimestamp(p.createdAt)}
                         </p>
                       )}
+                      {p.fileUrl && (
+                        <a 
+                          href={p.fileUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="mt-2 text-sm text-blue-600 hover:underline inline-block"
+                        >
+                          View Attachment
+                        </a>
+                      )}
                     </li>
                   ))
                 )}
@@ -1136,7 +1163,7 @@ export default function App() {
         )}
 
         {/* Modals */}
-        {isManager && showModal === "announcement" && (
+        {showModal === "announcement" && (
           <Modal
             title={editingItem ? t.modal.editAnnouncement : t.modal.createAnnouncement}
             onClose={() => { setShowModal(null); setEditingItem(null); setImageFile(null); }}
@@ -1163,14 +1190,16 @@ export default function App() {
                   defaultValue={editingItem?.body || ''}
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">{t.modal.image}</label>
-                <input
-                  type="file"
-                  onChange={(e) => setImageFile(e.target.files[0])}
-                  className="w-full text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                />
-              </div>
+              {isManager && (
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t.modal.image}</label>
+                  <input
+                    type="file"
+                    onChange={(e) => setImageFile(e.target.files[0])}
+                    className="w-full text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                  />
+                </div>
+              )}
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
@@ -1191,10 +1220,10 @@ export default function App() {
           </Modal>
         )}
 
-        {isManager && showModal === "pqr" && (
+        {isLoggedIn && showModal === "pqr" && (
           <Modal
             title={editingItem ? t.modal.editPQR : t.modal.createPQR}
-            onClose={() => { setShowModal(null); setEditingItem(null); }}
+            onClose={() => { setShowModal(null); setEditingItem(null); setPqrFile(null); }}
           >
             <form onSubmit={editingItem ? handleUpdate : handleAddPQR} className="space-y-4">
               <div>
@@ -1240,19 +1269,28 @@ export default function App() {
                   defaultValue={editingItem?.body || ''}
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">{t.modal.file}</label>
+                <input
+                  type="file"
+                  onChange={(e) => setPqrFile(e.target.files[0])}
+                  className="w-full text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+              </div>
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => { setShowModal(null); setEditingItem(null); }}
+                  onClick={() => { setShowModal(null); setEditingItem(null); setPqrFile(null); }}
                   className="bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
                 >
                   {t.modal.cancel}
                 </button>
                 <button
                   type="submit"
-                  className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors"
+                  className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={uploading}
                 >
-                  {editingItem ? t.modal.update : t.modal.submit}
+                  {uploading ? t.loading : (editingItem ? t.modal.update : t.modal.submit)}
                 </button>
               </div>
             </form>
