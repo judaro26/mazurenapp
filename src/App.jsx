@@ -417,7 +417,7 @@ export default function App() {
           (snap) => setPqrs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
           (err) => console.error("PQRs listener error:", err)
         );
-      } else if (isLoggedIn) {
+      } else if (auth?.currentUser?.uid) {
         unsubPqrs = onSnapshot(
           query(collection(db, pqrsPath), where("authorId", "==", auth.currentUser.uid), orderBy("createdAt", "desc")),
           (snap) => setPqrs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
@@ -441,7 +441,7 @@ export default function App() {
       unsubPqrs();
       unsubDocs();
     };
-  }, [db, isAuthReady, appId, isLoggedIn, isManager]); // FIX: Add isLoggedIn and isManager to dependencies
+  }, [db, isAuthReady, appId, isLoggedIn, isManager, auth]);
 
   /**
    * Actions
