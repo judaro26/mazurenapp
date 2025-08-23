@@ -946,6 +946,9 @@ export default function App() {
           </div>
           <div className="text-center sm:text-right">
             <p className="text-sm text-gray-600">{t.loggedInAs}</p>
+            {userIdentifier && userRole !== "anonymous" && (
+              <p className="font-mono text-xs break-all mt-1">{userIdentifier}</p>
+            )}
             {userRole && (
               <p className="font-semibold text-xs mt-1">
                 {userRole === "manager" ? t.login.roleManager : userRole === "resident" ? t.login.roleResident : t.login.roleAnonymous}
@@ -978,7 +981,7 @@ export default function App() {
           >
             {t.announcements}
           </button>
-          {isLoggedIn && (
+          {isLoggedIn && userRole !== "anonymous" && (
             <>
               <button
                 onClick={() => setView("pqrs")}
