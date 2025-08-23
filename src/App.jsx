@@ -20,6 +20,8 @@ import {
   setDoc,
   updateDoc,
 } from "firebase/firestore";
+// NEW: Import Firebase Storage functions
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 /**
  * ----------------------------------------------
@@ -67,6 +69,7 @@ const translations = {
       documentUrlPlaceholder: "e.g., https://example.com/budget.pdf",
       upload: "Upload",
       cancel: "Cancel",
+      image: "Image (optional)",
     },
     loading: "Loading...",
     login: {
@@ -137,6 +140,7 @@ const translations = {
       documentUrlPlaceholder: "ej., https://example.com/presupuesto.pdf",
       upload: "Subir",
       cancel: "Cancelar",
+      image: "Imagen (opcional)",
     },
     loading: "Cargando...",
     login: {
@@ -243,8 +247,8 @@ export default function App() {
   const [app, setApp] = useState(null);
   const [auth, setAuth] = useState(null);
   const [db, setDb] = useState(null);
+  const [storage, setStorage] = useState(null); // NEW: Add storage state
 
-  // ↓ CORRECTION 1: Change state variable from userId to userIdentifier
   const [userIdentifier, setUserIdentifier] = useState(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isManager, setIsManager] = useState(false);
@@ -259,6 +263,10 @@ export default function App() {
   const [pqrs, setPqrs] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [showModal, setShowModal] = useState(null); // 'announcement' | 'pqr' | 'document'
+
+  // NEW: Add state for image upload
+  const [imageFile, setImageFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
 
   // Login form
   const [loginMode, setLoginMode] = useState("resident");
@@ -288,14 +296,16 @@ export default function App() {
         const appInstance = getApps().length ? getApp() : initializeApp(firebaseConfig);
         const authInstance = getAuth(appInstance);
         const dbInstance = getFirestore(appInstance);
+        // NEW: Initialize Firebase Storage
+        const storageInstance = getStorage(appInstance);
         setApp(appInstance);
         setAuth(authInstance);
         setDb(dbInstance);
+        setStorage(storageInstance);
 
         const unsub = onAuthStateChanged(authInstance, async (user) => {
           try {
             if (user) {
-              // ↓ CORRECTION 2: Use email for display, falling back to "Anonymous" or UUID
               setUserIdentifier(user.email || user.uid);
               setIsLoggedIn(true);
 
@@ -312,7 +322,6 @@ export default function App() {
               setIsAuthReady(true);
               setLoading(false);
             } else {
-              // ↓ CORRECTION 3: Set userIdentifier to null on logout
               setUserIdentifier(null);
               setIsLoggedIn(false);
               setIsManager(false);
@@ -383,27 +392,44 @@ export default function App() {
   /**
    * Actions
    */
+  // NEW: Updated handleAddAnnouncement to handle image uploads
   const handleAddAnnouncement = async (e) => {
     e.preventDefault();
-    if (!db) return;
+    if (!db || !storage) return;
     const title = announcementTitleRef.current?.value?.trim();
     const body = announcementBodyRef.current?.value?.trim();
     if (!title || !body) return;
 
+    setUploading(true);
+    let imageUrl = null;
+
     try {
+      // If an image file is selected, upload it to Firebase Storage
+      if (imageFile) {
+        const storagePath = `announcements/${userId}-${Date.now()}-${imageFile.name}`;
+        const imageRef = ref(storage, storagePath);
+        await uploadBytes(imageRef, imageFile);
+        imageUrl = await getDownloadURL(imageRef);
+      }
+
       const path = `artifacts/${appId}/public/data/announcements`;
       await addDoc(collection(db, path), {
         title,
         body,
+        // NEW: Conditionally add imageUrl
+        imageUrl: imageUrl,
         createdAt: serverTimestamp(),
         authorId: userId,
       });
       setShowModal(null);
       if (announcementTitleRef.current) announcementTitleRef.current.value = "";
       if (announcementBodyRef.current) announcementBodyRef.current.value = "";
+      setImageFile(null);
     } catch (err) {
       console.error("Error adding announcement:", err);
       setErrorMsg("Couldn't add announcement.");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -719,7 +745,6 @@ export default function App() {
           </div>
           <div className="text-center sm:text-right">
             <p className="text-sm text-gray-600">{t.loggedInAs}</p>
-            {/* ↓ CORRECTION 4: Display userIdentifier instead of userId */}
             <p className="font-mono text-xs break-all mt-1">{userIdentifier}</p>
             <div className="flex justify-center sm:justify-end mt-2">
               <button
@@ -789,6 +814,12 @@ export default function App() {
                   announcements.map((a) => (
                     <li key={a.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200">
                       <h3 className="text-xl font-semibold">{a.title}</h3>
+                      {/* NEW: Conditionally display image */}
+                      {a.imageUrl && (
+                        <div className="mt-4 overflow-hidden rounded-lg">
+                          <img src={a.imageUrl} alt={a.title} className="w-full object-cover" />
+                        </div>
+                      )}
                       <p className="text-gray-700 mt-2 whitespace-pre-wrap">{a.body}</p>
                       {a.createdAt && (
                         <p className="text-sm text-gray-400 mt-2">
@@ -920,7 +951,7 @@ export default function App() {
 
         {/* Modals */}
         {isManager && showModal === "announcement" && (
-          <Modal title={t.modal.createAnnouncement} onClose={() => setShowModal(null)}>
+          <Modal title={t.modal.createAnnouncement} onClose={() => { setShowModal(null); setImageFile(null); }}>
             <form onSubmit={handleAddAnnouncement} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">{t.modal.title}</label>
@@ -941,19 +972,29 @@ export default function App() {
                   required
                 />
               </div>
+              {/* NEW: Add image file input */}
+              <div>
+                <label className="block text-sm font-medium mb-1">{t.modal.image}</label>
+                <input
+                  type="file"
+                  onChange={(e) => setImageFile(e.target.files[0])}
+                  className="w-full text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+              </div>
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowModal(null)}
+                  onClick={() => { setShowModal(null); setImageFile(null); }}
                   className="bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
                 >
                   {t.modal.cancel}
                 </button>
                 <button
                   type="submit"
-                  className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors"
+                  className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={uploading}
                 >
-                  {t.modal.publish}
+                  {uploading ? t.loading : t.modal.publish}
                 </button>
               </div>
             </form>
