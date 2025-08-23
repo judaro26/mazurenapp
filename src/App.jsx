@@ -362,12 +362,13 @@ export default function App() {
               // Always use the UID for the user identifier
               setUserIdentifier(user.uid);
               setIsLoggedIn(true);
+              // Set the user's email from the auth object
+              setUserEmail(user.email || null);
 
               if (user.isAnonymous) {
                 setIsManager(false);
                 setUserRole("anonymous");
                 // Clear resident-specific info for anonymous users
-                setUserEmail(null);
                 setUserApartment(null);
               } else {
                 const userDocRef = doc(dbInstance, `artifacts/${appId}/public/data/users`, user.uid);
@@ -378,7 +379,6 @@ export default function App() {
                   setIsManager(isManagerStatus);
                   setUserRole(isManagerStatus ? "manager" : "resident");
                   // Get details from Firestore document
-                  setUserEmail(userData.email || null);
                   setUserApartment(userData.apartment || null);
                 } else {
                   // NEW: Use setDoc to create the user document with initial data
@@ -391,7 +391,6 @@ export default function App() {
                   });
                   setIsManager(false);
                   setUserRole("resident");
-                  setUserEmail(user.email || null);
                   setUserApartment(null);
                 }
               }
