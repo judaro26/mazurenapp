@@ -1,5 +1,8 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
+// NEW: Import the cors library
+const cors = require('cors')({ origin: true });
+
 admin.initializeApp();
 
 exports.setManagerRole = functions.https.onCall(async (data, context) => {
@@ -9,7 +12,6 @@ exports.setManagerRole = functions.https.onCall(async (data, context) => {
   const callerData = callerDoc.data();
 
   if (!context.auth || !callerData.isManager) {
-    // Corrected syntax: `new functions.https.HttpsError`
     throw new functions.https.HttpsError(
       'permission-denied',
       'Only managers can set user roles.'
@@ -18,7 +20,6 @@ exports.setManagerRole = functions.https.onCall(async (data, context) => {
 
   const { email, isManager } = data;
   if (typeof email !== 'string' || typeof isManager !== 'boolean') {
-    // Corrected syntax: `new functions.https.HttpsError`
     throw new functions.https.HttpsError(
       'invalid-argument',
       'The function must be called with an email and a boolean for isManager.'
