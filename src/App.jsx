@@ -6,6 +6,7 @@ import {
   onAuthStateChanged,
   signOut,
   signInAnonymously,
+  createUserWithEmailAndPassword,
 } from "firebase/auth";
 import {
   getFirestore,
@@ -284,12 +285,19 @@ export default function App() {
 
   const [imageFile, setImageFile] = useState(null);
   const [uploading, setUploading] = useState(false);
-  // NEW: State for PQR file upload
   const [pqrFile, setPqrFile] = useState(null);
 
-  // NEW: State for editing items
   const [editingItem, setEditingItem] = useState(null);
   const [editingCollection, setEditingCollection] = useState(null);
+  
+  // NEW: State for registration form
+  const [showRegisterForm, setShowRegisterForm] = useState(false);
+  const [registerName, setRegisterName] = useState("");
+  const [registerApartment, setRegisterApartment] = useState("");
+  const [registerPhone, setRegisterPhone] = useState("");
+  const [registerEmail, setRegisterEmail] = useState("");
+  const [registerPassword, setRegisterPassword] = useState("");
+  const [registerError, setRegisterError] = useState("");
 
   // Login form
   const [loginMode, setLoginMode] = useState("resident");
@@ -300,8 +308,8 @@ export default function App() {
   // Refs
   const announcementTitleRef = useRef(null);
   const announcementBodyRef = useRef(null);
-  const pqrNameRef = useRef(null); // NEW: Ref for PQR name
-  const pqrApartmentRef = useRef(null); // NEW: Ref for PQR apartment number
+  const pqrNameRef = useRef(null);
+  const pqrApartmentRef = useRef(null);
   const pqrTitleRef = useRef(null);
   const pqrBodyRef = useRef(null);
   const documentNameRef = useRef(null);
@@ -415,6 +423,34 @@ export default function App() {
   /**
    * Actions
    */
+  // NEW: handleRegister function
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setRegisterError("");
+    if (!auth || !db) {
+      setRegisterError("Authentication or database service is not ready.");
+      return;
+    }
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, registerEmail, registerPassword);
+      const user = userCredential.user;
+      
+      const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, user.uid);
+      await setDoc(userDocRef, {
+        isManager: false,
+        email: user.email,
+        name: registerName,
+        apartment: registerApartment,
+        phone: registerPhone,
+      });
+
+      setShowRegisterForm(false);
+    } catch (err) {
+      console.error("Registration failed:", err);
+      setRegisterError(err.message);
+    }
+  };
+
   const handleAddAnnouncement = async (e) => {
     e.preventDefault();
     if (!db || !storage) return;
@@ -500,7 +536,6 @@ export default function App() {
     }
   };
 
-  // NEW: Updated handleAddPQR to include file upload
   const handleAddPQR = async (e) => {
     e.preventDefault();
     if (!db || !storage) return;
@@ -527,7 +562,7 @@ export default function App() {
         apartment,
         title,
         body,
-        fileUrl: fileUrl, // NEW: Add fileUrl
+        fileUrl: fileUrl,
         status: "Open",
         createdAt: serverTimestamp(),
         authorId: userIdentifier,
@@ -537,7 +572,7 @@ export default function App() {
       if (pqrApartmentRef.current) pqrApartmentRef.current.value = "";
       if (pqrTitleRef.current) pqrTitleRef.current.value = "";
       if (pqrBodyRef.current) pqrBodyRef.current.value = "";
-      setPqrFile(null); // NEW: Clear the file state
+      setPqrFile(null);
     } catch (err) {
       console.error("Error adding PQR:", err);
       setErrorMsg("Couldn't add PQR.");
@@ -703,6 +738,82 @@ export default function App() {
    * Not logged in → Auth screens
    */
   if (!isLoggedIn) {
+    // NEW: Conditional rendering for registration form
+    if (showRegisterForm) {
+      return (
+        <div className="min-h-screen bg-gray-100 font-sans text-gray-800 p-4 sm:p-6 flex items-center justify-center">
+          <div className="bg-white p-8 rounded-2xl shadow-md max-w-sm w-full">
+            <h1 className="text-2xl font-bold mb-2">{t.login.registerTitle}</h1>
+            <p className="text-gray-600 mb-6">{t.login.registerSubtitle}</p>
+            <form onSubmit={handleRegister} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">{t.modal.name}</label>
+                <input
+                  type="text"
+                  value={registerName}
+                  onChange={(e) => setRegisterName(e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder={t.modal.namePlaceholder}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">{t.modal.apartment}</label>
+                <input
+                  type="text"
+                  value={registerApartment}
+                  onChange={(e) => setRegisterApartment(e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder={t.modal.apartmentPlaceholder}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">{t.login.emailLabel}</label>
+                <input
+                  type="email"
+                  value={registerEmail}
+                  onChange={(e) => setRegisterEmail(e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder={t.login.emailPlaceholder}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">{t.login.passwordLabel}</label>
+                <input
+                  type="password"
+                  value={registerPassword}
+                  onChange={(e) => setRegisterPassword(e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder={t.login.passwordPlaceholder}
+                  required
+                />
+              </div>
+              {registerError && <p className="text-red-500 text-xs mt-2">{registerError}</p>}
+              <button
+                type="submit"
+                className="w-full bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors"
+              >
+                {t.login.registerButton}
+              </button>
+            </form>
+            <div className="relative flex py-4 items-center">
+              <div className="flex-grow border-t border-gray-300" />
+              <span className="flex-shrink mx-4 text-gray-500 text-sm">or</span>
+              <div className="flex-grow border-t border-gray-300" />
+            </div>
+            <button
+              onClick={() => setShowRegisterForm(false)}
+              className="w-full bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
+            >
+              Back to Login
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-gray-100 font-sans text-gray-800 p-4 sm:p-6 flex items-center justify-center">
         <div className="bg-white p-8 rounded-2xl shadow-md max-w-sm w-full">
@@ -825,6 +936,17 @@ export default function App() {
                 className="w-full bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
               >
                 {t.login.continueButton}
+              </button>
+              <div className="relative flex py-4 items-center">
+                <div className="flex-grow border-t border-gray-300" />
+                <span className="flex-shrink mx-4 text-gray-500 text-sm">or</span>
+                <div className="flex-grow border-t border-gray-300" />
+              </div>
+              <button
+                onClick={() => setShowRegisterForm(true)}
+                className="w-full bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
+              >
+                Register a New Account
               </button>
             </>
           )}
