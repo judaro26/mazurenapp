@@ -410,20 +410,21 @@ export default function App() {
         (err) => console.error("Announcements listener error:", err)
       );
 
-      // FIX: Conditionally fetch PQRs based on user role
+      // FIX: Conditionally fetch PQRs based on user role and ID
       if (isManager) {
         unsubPqrs = onSnapshot(
           query(collection(db, pqrsPath), orderBy("createdAt", "desc")),
           (snap) => setPqrs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
           (err) => console.error("PQRs listener error:", err)
         );
-      } else {
-        // Only fetch PQRs submitted by the current user
+      } else if (isLoggedIn) {
         unsubPqrs = onSnapshot(
-          query(collection(db, pqrsPath), where("authorId", "==", userIdentifier), orderBy("createdAt", "desc")),
+          query(collection(db, pqrsPath), where("authorId", "==", auth.currentUser.uid), orderBy("createdAt", "desc")),
           (snap) => setPqrs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
           (err) => console.error("PQRs listener error:", err)
         );
+      } else {
+        setPqrs([]); // Clear PQRs if not logged in
       }
       
       unsubDocs = onSnapshot(
@@ -440,7 +441,7 @@ export default function App() {
       unsubPqrs();
       unsubDocs();
     };
-  }, [db, isAuthReady, appId, userIdentifier, isManager]); // FIX: Add userIdentifier and isManager to dependencies
+  }, [db, isAuthReady, appId, isLoggedIn, isManager]); // FIX: Add isLoggedIn and isManager to dependencies
 
   /**
    * Actions
