@@ -63,6 +63,8 @@ const translations = {
       namePlaceholder: "e.g., John Doe",
       apartment: "Apartment No.",
       apartmentPlaceholder: "e.g., 101B",
+      phone: "Phone Number",
+      phonePlaceholder: "e.g., 555-123-4567",
       announcementPlaceholder: "e.g., Water shut-off notice",
       announcementBodyPlaceholder:
         "e.g., Please be advised that water will be turned off from...",
@@ -85,6 +87,8 @@ const translations = {
     login: {
       title: "Welcome",
       subtitle: "Please log in to continue.",
+      registerTitle: "Register a New Account",
+      registerSubtitle: "Please fill out your details to create an account.",
       emailLabel: "Email",
       passwordLabel: "Password",
       emailPlaceholder: "your-email@example.com",
@@ -92,6 +96,8 @@ const translations = {
       loginButton: "Log In",
       logoutButton: "Log Out",
       continueButton: "Continue as Standard User",
+      registerButton: "Register Account",
+      backToLogin: "Back to Login",
       invalidCredentials: "Invalid email or password. Please try again.",
       residentLogin: "Resident Login",
       managerLogin: "Manager Login",
@@ -143,6 +149,8 @@ const translations = {
       namePlaceholder: "ej., John Doe",
       apartment: "Número de apartamento",
       apartmentPlaceholder: "ej., 101B",
+      phone: "Número de teléfono",
+      phonePlaceholder: "ej., 555-123-4567",
       announcementPlaceholder: "ej., Aviso de corte de agua",
       announcementBodyPlaceholder:
         "ej., Por favor, tenga en cuenta que el agua se cortará desde...",
@@ -165,6 +173,8 @@ const translations = {
     login: {
       title: "Bienvenido",
       subtitle: "Por favor, inicie sesión para continuar.",
+      registerTitle: "Registrar una nueva cuenta",
+      registerSubtitle: "Por favor, complete sus datos para crear una cuenta.",
       emailLabel: "Correo electrónico",
       passwordLabel: "Contraseña",
       emailPlaceholder: "su-correo@ejemplo.com",
@@ -172,6 +182,8 @@ const translations = {
       loginButton: "Iniciar sesión",
       logoutButton: "Cerrar sesión",
       continueButton: "Continuar como usuario estándar",
+      registerButton: "Registrar Cuenta",
+      backToLogin: "Volver a Iniciar sesión",
       invalidCredentials:
         "Correo electrónico o contraseña incorrectos. Por favor, inténtelo de nuevo.",
       residentLogin: "Iniciar sesión como residente",
@@ -291,7 +303,6 @@ export default function App() {
   const [editingCollection, setEditingCollection] = useState(null);
   
   const [showRegisterForm, setShowRegisterForm] = useState(false);
-  // NEW: State for registration form fields
   const [registerName, setRegisterName] = useState("");
   const [registerApartment, setRegisterApartment] = useState("");
   const [registerPhone, setRegisterPhone] = useState("");
@@ -444,7 +455,6 @@ export default function App() {
       });
 
       setShowRegisterForm(false);
-      // Automatically log in the new user
       await signInWithEmailAndPassword(auth, registerEmail, registerPassword);
     } catch (err) {
       console.error("Registration failed:", err);
@@ -652,6 +662,7 @@ export default function App() {
     }
     try {
       await signInAnonymously(auth);
+      setView("announcements"); // NEW: Automatically set view to announcements
     } catch (err) {
       console.error("Anonymous login failed:", err);
       setLoginError("Anonymous login failed.");
@@ -739,7 +750,6 @@ export default function App() {
    * Not logged in → Auth screens
    */
   if (!isLoggedIn) {
-    // NEW: Conditional rendering for registration form
     if (showRegisterForm) {
       return (
         <div className="min-h-screen bg-gray-100 font-sans text-gray-800 p-4 sm:p-6 flex items-center justify-center">
@@ -766,6 +776,17 @@ export default function App() {
                   onChange={(e) => setRegisterApartment(e.target.value)}
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder={t.modal.apartmentPlaceholder}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">{t.modal.phone}</label>
+                <input
+                  type="tel"
+                  value={registerPhone}
+                  onChange={(e) => setRegisterPhone(e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder={t.modal.phonePlaceholder}
                   required
                 />
               </div>
@@ -808,7 +829,7 @@ export default function App() {
               onClick={() => setShowRegisterForm(false)}
               className="w-full bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
             >
-              Back to Login
+              {t.login.backToLogin}
             </button>
           </div>
         </div>
@@ -947,7 +968,7 @@ export default function App() {
                 onClick={() => setShowRegisterForm(true)}
                 className="w-full bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
               >
-                Register a New Account
+                {t.login.registerButton}
               </button>
             </>
           )}
