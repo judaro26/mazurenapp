@@ -356,7 +356,8 @@ export default function App() {
         const unsub = onAuthStateChanged(authInstance, async (user) => {
           try {
             if (user) {
-              setUserIdentifier(user.email || user.uid);
+              // CHANGE 1: Consistently use the UID for the user identifier
+              setUserIdentifier(user.uid);
               setIsLoggedIn(true);
 
               if (user.isAnonymous) {
@@ -512,7 +513,7 @@ export default function App() {
         body,
         imageUrl: imageUrl,
         createdAt: serverTimestamp(),
-        authorId: userIdentifier,
+        authorId: auth.currentUser.uid, // CHANGE 2: Use auth.currentUser.uid
       });
       setShowModal(null);
       if (announcementTitleRef.current) announcementTitleRef.current.value = "";
@@ -575,7 +576,8 @@ export default function App() {
 
   const handleAddPQR = async (e) => {
     e.preventDefault();
-    if (!db || !storage) return;
+    if (!db || !storage || !auth?.currentUser?.uid) return; // Add check for UID
+
     const name = pqrNameRef.current?.value?.trim();
     const apartment = pqrApartmentRef.current?.value?.trim();
     const title = pqrTitleRef.current?.value?.trim();
@@ -587,7 +589,7 @@ export default function App() {
 
     try {
       if (pqrFile) {
-        const storagePath = `pqrs/${userIdentifier}-${Date.now()}-${pqrFile.name}`;
+        const storagePath = `pqrs/${auth.currentUser.uid}-${Date.now()}-${pqrFile.name}`; // Use UID here
         const fileRef = ref(storage, storagePath);
         await uploadBytes(fileRef, pqrFile);
         fileUrl = await getDownloadURL(fileRef);
@@ -602,7 +604,8 @@ export default function App() {
         fileUrl: fileUrl,
         status: "Open",
         createdAt: serverTimestamp(),
-        authorId: userIdentifier,
+        // CHANGE 3: Use the UID for the authorId
+        authorId: auth.currentUser.uid,
       });
       setShowModal(null);
       if (pqrNameRef.current) pqrNameRef.current.value = "";
@@ -639,7 +642,7 @@ export default function App() {
         name,
         url,
         createdAt: serverTimestamp(),
-        authorId: userIdentifier,
+        authorId: auth.currentUser.uid, // CHANGE 4: Use auth.currentUser.uid
       });
       setShowModal(null);
       if (documentNameRef.current) documentNameRef.current.value = "";
