@@ -290,8 +290,8 @@ export default function App() {
   const [editingItem, setEditingItem] = useState(null);
   const [editingCollection, setEditingCollection] = useState(null);
   
-  // NEW: State for registration form
   const [showRegisterForm, setShowRegisterForm] = useState(false);
+  // NEW: State for registration form fields
   const [registerName, setRegisterName] = useState("");
   const [registerApartment, setRegisterApartment] = useState("");
   const [registerPhone, setRegisterPhone] = useState("");
@@ -423,7 +423,6 @@ export default function App() {
   /**
    * Actions
    */
-  // NEW: handleRegister function
   const handleRegister = async (e) => {
     e.preventDefault();
     setRegisterError("");
@@ -445,6 +444,8 @@ export default function App() {
       });
 
       setShowRegisterForm(false);
+      // Automatically log in the new user
+      await signInWithEmailAndPassword(auth, registerEmail, registerPassword);
     } catch (err) {
       console.error("Registration failed:", err);
       setRegisterError(err.message);
