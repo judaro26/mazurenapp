@@ -21,6 +21,7 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  where,
 } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
@@ -409,12 +410,22 @@ export default function App() {
         (err) => console.error("Announcements listener error:", err)
       );
 
-      unsubPqrs = onSnapshot(
-        query(collection(db, pqrsPath), orderBy("createdAt", "desc")),
-        (snap) => setPqrs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-        (err) => console.error("PQRs listener error:", err)
-      );
-
+      // FIX: Conditionally fetch PQRs based on user role
+      if (isManager) {
+        unsubPqrs = onSnapshot(
+          query(collection(db, pqrsPath), orderBy("createdAt", "desc")),
+          (snap) => setPqrs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+          (err) => console.error("PQRs listener error:", err)
+        );
+      } else {
+        // Only fetch PQRs submitted by the current user
+        unsubPqrs = onSnapshot(
+          query(collection(db, pqrsPath), where("authorId", "==", userIdentifier), orderBy("createdAt", "desc")),
+          (snap) => setPqrs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+          (err) => console.error("PQRs listener error:", err)
+        );
+      }
+      
       unsubDocs = onSnapshot(
         query(collection(db, documentsPath), orderBy("createdAt", "desc")),
         (snap) => setDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
@@ -429,7 +440,7 @@ export default function App() {
       unsubPqrs();
       unsubDocs();
     };
-  }, [db, isAuthReady, appId]);
+  }, [db, isAuthReady, appId, userIdentifier, isManager]); // FIX: Add userIdentifier and isManager to dependencies
 
   /**
    * Actions
@@ -662,7 +673,7 @@ export default function App() {
     }
     try {
       await signInAnonymously(auth);
-      setView("announcements"); // NEW: Automatically set view to announcements
+      setView("announcements");
     } catch (err) {
       console.error("Anonymous login failed:", err);
       setLoginError("Anonymous login failed.");
