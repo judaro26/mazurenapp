@@ -19,8 +19,8 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  deleteDoc,
 } from "firebase/firestore";
-// Import Firebase Storage functions
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 /**
@@ -51,18 +51,22 @@ const translations = {
     closedStatus: "Closed",
     modal: {
       createAnnouncement: "Create New Announcement",
+      editAnnouncement: "Edit Announcement",
+      createPQR: "Create New PQR",
+      editPQR: "Edit PQR",
+      uploadDocument: "Upload New Document",
+      editDocument: "Edit Document",
       title: "Title",
       body: "Body",
       announcementPlaceholder: "e.g., Water shut-off notice",
       announcementBodyPlaceholder:
         "e.g., Please be advised that water will be turned off from...",
       publish: "Publish",
-      createPQR: "Create New PQR",
+      update: "Update",
       pqrPlaceholder: "e.g., Noise complaint from unit 10B",
       pqrBodyPlaceholder:
         "e.g., The residents of unit 10B have been playing loud music...",
       submit: "Submit",
-      uploadDocument: "Upload New Document",
       documentName: "Document Name",
       documentNamePlaceholder: "e.g., 2024 Annual Budget",
       documentUrl: "Document URL",
@@ -122,18 +126,22 @@ const translations = {
     closedStatus: "Cerrado",
     modal: {
       createAnnouncement: "Crear Nuevo Anuncio",
+      editAnnouncement: "Editar Anuncio",
+      createPQR: "Crear Nuevo PQR",
+      editPQR: "Editar PQR",
+      uploadDocument: "Subir Nuevo Documento",
+      editDocument: "Editar Documento",
       title: "Título",
       body: "Cuerpo",
       announcementPlaceholder: "ej., Aviso de corte de agua",
       announcementBodyPlaceholder:
         "ej., Por favor, tenga en cuenta que el agua se cortará desde...",
       publish: "Publicar",
-      createPQR: "Crear Nuevo PQR",
+      update: "Actualizar",
       pqrPlaceholder: "ej., Queja por ruido de la unidad 10B",
       pqrBodyPlaceholder:
         "ej., Los residentes de la unidad 10B han estado poniendo música alta...",
       submit: "Enviar",
-      uploadDocument: "Subir Nuevo Documento",
       documentName: "Nombre del Documento",
       documentNamePlaceholder: "ej., Presupuesto Anual 2024",
       documentUrl: "URL del Documento",
@@ -266,6 +274,10 @@ export default function App() {
 
   const [imageFile, setImageFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+
+  // NEW: State for editing items
+  const [editingItem, setEditingItem] = useState(null);
+  const [editingCollection, setEditingCollection] = useState(null);
 
   // Login form
   const [loginMode, setLoginMode] = useState("resident");
@@ -427,6 +439,52 @@ export default function App() {
     }
   };
 
+  // NEW: handleUpdate function
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    if (!db || !editingItem || !editingCollection) return;
+    
+    let updatedData = {};
+    let path;
+
+    switch (editingCollection) {
+      case 'announcements':
+        path = `artifacts/${appId}/public/data/announcements`;
+        updatedData = {
+          title: announcementTitleRef.current?.value,
+          body: announcementBodyRef.current?.value,
+        };
+        break;
+      case 'pqrs':
+        path = `artifacts/${appId}/public/data/pqrs`;
+        updatedData = {
+          title: pqrTitleRef.current?.value,
+          body: pqrBodyRef.current?.value,
+        };
+        break;
+      case 'documents':
+        path = `artifacts/${appId}/public/data/documents`;
+        updatedData = {
+          name: documentNameRef.current?.value,
+          url: documentUrlRef.current?.value,
+        };
+        break;
+      default:
+        return;
+    }
+
+    try {
+      const docRef = doc(db, path, editingItem.id);
+      await updateDoc(docRef, updatedData);
+      setEditingItem(null);
+      setEditingCollection(null);
+      setShowModal(null);
+    } catch (err) {
+      console.error("Error updating document:", err);
+      setErrorMsg("Couldn't update item.");
+    }
+  };
+
   const handleAddPQR = async (e) => {
     e.preventDefault();
     if (!db) return;
@@ -484,6 +542,21 @@ export default function App() {
     }
   };
 
+  const handleDelete = async (collectionName, docId) => {
+    if (!db) return;
+    const isConfirmed = window.confirm("Are you sure you want to delete this item?");
+    if (!isConfirmed) return;
+
+    try {
+      const path = `artifacts/${appId}/public/data/${collectionName}`;
+      const docRef = doc(db, path, docId);
+      await deleteDoc(docRef);
+    } catch (err) {
+      console.error(`Error deleting ${collectionName}:`, err);
+      setErrorMsg(`Couldn't delete ${collectionName}.`);
+    }
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError("");
@@ -521,7 +594,7 @@ export default function App() {
       console.error("Logout failed:", err);
     }
   };
-
+  
   const updatePqrStatus = async (pqrId, nextStatus) => {
     if (!db) return;
     try {
@@ -532,7 +605,7 @@ export default function App() {
       setErrorMsg("Couldn't update status.");
     }
   };
-  
+
   /**
    * Modal
    */
@@ -793,7 +866,10 @@ export default function App() {
                 <h2 className="text-2xl font-bold">{t.announcements}</h2>
                 {isManager && (
                   <button
-                    onClick={() => setShowModal("announcement")}
+                    onClick={() => {
+                      setEditingItem(null);
+                      setShowModal("announcement");
+                    }}
                     className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors"
                   >
                     {t.addAnnouncement}
@@ -805,7 +881,37 @@ export default function App() {
                   <li className="text-gray-500 italic text-center py-4">{t.noAnnouncements}</li>
                 ) : (
                   announcements.map((a) => (
-                    <li key={a.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <li key={a.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200 relative">
+                      {isManager && (
+                        <div className="absolute top-2 right-2 flex space-x-2">
+                          <button
+                            onClick={() => {
+                              setEditingItem(a);
+                              setEditingCollection('announcements');
+                              setShowModal("announcement");
+                            }}
+                            className="text-gray-400 hover:text-blue-600"
+                            aria-label="Edit announcement"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                          </button>
+                          <button 
+                            onClick={() => handleDelete('announcements', a.id)} 
+                            className="text-gray-400 hover:text-red-600"
+                            aria-label="Delete announcement"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6"></polyline>
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                              <line x1="10" y1="11" x2="10" y2="17"></line>
+                              <line x1="14" y1="11" x2="14" y2="17"></line>
+                            </svg>
+                          </button>
+                        </div>
+                      )}
                       <h3 className="text-xl font-semibold">{a.title}</h3>
                       {a.imageUrl && (
                         <div className="mt-4 overflow-hidden rounded-lg">
@@ -832,7 +938,10 @@ export default function App() {
                 <h2 className="text-2xl font-bold">{t.pqrs}</h2>
                 {isManager && (
                   <button
-                    onClick={() => setShowModal("pqr")}
+                    onClick={() => {
+                      setEditingItem(null);
+                      setShowModal("pqr");
+                    }}
                     className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors"
                   >
                     {t.createPQR}
@@ -844,7 +953,37 @@ export default function App() {
                   <li className="text-gray-500 italic text-center py-4">{t.noPqrs}</li>
                 ) : (
                   pqrs.map((p) => (
-                    <li key={p.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <li key={p.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200 relative">
+                      {isManager && (
+                        <div className="absolute top-2 right-2 flex space-x-2">
+                          <button
+                            onClick={() => {
+                              setEditingItem(p);
+                              setEditingCollection('pqrs');
+                              setShowModal("pqr");
+                            }}
+                            className="text-gray-400 hover:text-blue-600"
+                            aria-label="Edit PQR"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                          </button>
+                          <button 
+                            onClick={() => handleDelete('pqrs', p.id)} 
+                            className="text-gray-400 hover:text-red-600"
+                            aria-label="Delete PQR"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6"></polyline>
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                              <line x1="10" y1="11" x2="10" y2="17"></line>
+                              <line x1="14" y1="11" x2="14" y2="17"></line>
+                            </svg>
+                          </button>
+                        </div>
+                      )}
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <h3 className="text-xl font-semibold">{p.title}</h3>
                         <div className="flex items-center gap-2">
@@ -896,7 +1035,10 @@ export default function App() {
                 <h2 className="text-2xl font-bold">{t.documents}</h2>
                 {isManager && (
                   <button
-                    onClick={() => setShowModal("document")}
+                    onClick={() => {
+                      setEditingItem(null);
+                      setShowModal("document");
+                    }}
                     className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors"
                   >
                     {t.uploadDocument}
@@ -910,8 +1052,38 @@ export default function App() {
                   documents.map((d) => (
                     <li
                       key={d.id}
-                      className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center"
+                      className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center relative"
                     >
+                      {isManager && (
+                        <div className="absolute top-2 right-2 flex space-x-2">
+                          <button
+                            onClick={() => {
+                              setEditingItem(d);
+                              setEditingCollection('documents');
+                              setShowModal("document");
+                            }}
+                            className="text-gray-400 hover:text-blue-600"
+                            aria-label="Edit document"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleDelete('documents', d.id)}
+                            className="text-gray-400 hover:text-red-600"
+                            aria-label="Delete document"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6"></polyline>
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                              <line x1="10" y1="11" x2="10" y2="17"></line>
+                              <line x1="14" y1="11" x2="14" y2="17"></line>
+                            </svg>
+                          </button>
+                        </div>
+                      )}
                       <div className="flex-1">
                         <h3 className="text-xl font-semibold">{d.name}</h3>
                         {d.createdAt && (
@@ -943,8 +1115,11 @@ export default function App() {
 
         {/* Modals */}
         {isManager && showModal === "announcement" && (
-          <Modal title={t.modal.createAnnouncement} onClose={() => { setShowModal(null); setImageFile(null); }}>
-            <form onSubmit={handleAddAnnouncement} className="space-y-4">
+          <Modal
+            title={editingItem ? t.modal.editAnnouncement : t.modal.createAnnouncement}
+            onClose={() => { setShowModal(null); setEditingItem(null); setImageFile(null); }}
+          >
+            <form onSubmit={editingItem ? handleUpdate : handleAddAnnouncement} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">{t.modal.title}</label>
                 <input
@@ -953,6 +1128,7 @@ export default function App() {
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder={t.modal.announcementPlaceholder}
                   required
+                  defaultValue={editingItem?.title || ''}
                 />
               </div>
               <div>
@@ -962,6 +1138,7 @@ export default function App() {
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 h-32 resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder={t.modal.announcementBodyPlaceholder}
                   required
+                  defaultValue={editingItem?.body || ''}
                 />
               </div>
               <div>
@@ -975,7 +1152,7 @@ export default function App() {
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => { setShowModal(null); setImageFile(null); }}
+                  onClick={() => { setShowModal(null); setEditingItem(null); setImageFile(null); }}
                   className="bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
                 >
                   {t.modal.cancel}
@@ -985,7 +1162,7 @@ export default function App() {
                   className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={uploading}
                 >
-                  {uploading ? t.loading : t.modal.publish}
+                  {uploading ? t.loading : (editingItem ? t.modal.update : t.modal.publish)}
                 </button>
               </div>
             </form>
@@ -993,8 +1170,11 @@ export default function App() {
         )}
 
         {isManager && showModal === "pqr" && (
-          <Modal title={t.modal.createPQR} onClose={() => setShowModal(null)}>
-            <form onSubmit={handleAddPQR} className="space-y-4">
+          <Modal
+            title={editingItem ? t.modal.editPQR : t.modal.createPQR}
+            onClose={() => { setShowModal(null); setEditingItem(null); }}
+          >
+            <form onSubmit={editingItem ? handleUpdate : handleAddPQR} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">{t.modal.title}</label>
                 <input
@@ -1003,6 +1183,7 @@ export default function App() {
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder={t.modal.pqrPlaceholder}
                   required
+                  defaultValue={editingItem?.title || ''}
                 />
               </div>
               <div>
@@ -1012,12 +1193,13 @@ export default function App() {
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 h-32 resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder={t.modal.pqrBodyPlaceholder}
                   required
+                  defaultValue={editingItem?.body || ''}
                 />
               </div>
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowModal(null)}
+                  onClick={() => { setShowModal(null); setEditingItem(null); }}
                   className="bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
                 >
                   {t.modal.cancel}
@@ -1026,7 +1208,7 @@ export default function App() {
                   type="submit"
                   className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors"
                 >
-                  {t.modal.submit}
+                  {editingItem ? t.modal.update : t.modal.submit}
                 </button>
               </div>
             </form>
@@ -1034,8 +1216,11 @@ export default function App() {
         )}
 
         {isManager && showModal === "document" && (
-          <Modal title={t.modal.uploadDocument} onClose={() => setShowModal(null)}>
-            <form onSubmit={handleAddDocument} className="space-y-4">
+          <Modal
+            title={editingItem ? t.modal.editDocument : t.modal.uploadDocument}
+            onClose={() => { setShowModal(null); setEditingItem(null); }}
+          >
+            <form onSubmit={editingItem ? handleUpdate : handleAddDocument} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">{t.modal.documentName}</label>
                 <input
@@ -1044,6 +1229,7 @@ export default function App() {
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder={t.modal.documentNamePlaceholder}
                   required
+                  defaultValue={editingItem?.name || ''}
                 />
               </div>
               <div>
@@ -1054,12 +1240,13 @@ export default function App() {
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder={t.modal.documentUrlPlaceholder}
                   required
+                  defaultValue={editingItem?.url || ''}
                 />
               </div>
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowModal(null)}
+                  onClick={() => { setShowModal(null); setEditingItem(null); }}
                   className="bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
                 >
                   {t.modal.cancel}
@@ -1068,7 +1255,7 @@ export default function App() {
                   type="submit"
                   className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors"
                 >
-                  {t.modal.upload}
+                  {editingItem ? t.modal.update : t.modal.upload}
                 </button>
               </div>
             </form>
