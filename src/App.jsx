@@ -304,7 +304,7 @@ export default function App() {
   const [documents, setDocuments] = useState([]);
   const [showModal, setShowModal] = useState(null);
 
-  const [imageFile, setImageFile] = useState(null);
+  const [imageFiles, setImageFiles] = useState([]); // CHANGED: Now an array
   const [uploading, setUploading] = useState(false);
   const [pqrFile, setPqrFile] = useState(null);
 
@@ -510,28 +510,30 @@ export default function App() {
     if (!title || !body) return;
 
     setUploading(true);
-    let imageUrl = null;
+    let imageUrls = []; // CHANGED: Array to store multiple URLs
 
     try {
-      if (imageFile) {
-        const storagePath = `announcements/${auth.currentUser.uid}-${Date.now()}-${imageFile.name}`;
+      // Loop through each selected image file
+      for (const file of imageFiles) {
+        const storagePath = `announcements/${auth.currentUser.uid}-${Date.now()}-${file.name}`;
         const imageRef = ref(storage, storagePath);
-        await uploadBytes(imageRef, imageFile);
-        imageUrl = await getDownloadURL(imageRef);
+        await uploadBytes(imageRef, file);
+        const url = await getDownloadURL(imageRef);
+        imageUrls.push(url);
       }
 
       const path = `artifacts/${appId}/public/data/announcements`;
       await addDoc(collection(db, path), {
         title,
         body,
-        imageUrl: imageUrl,
+        imageUrls: imageUrls, // CHANGED: Store the array of URLs
         createdAt: serverTimestamp(),
         authorId: auth.currentUser.uid,
       });
       setShowModal(null);
       if (announcementTitleRef.current) announcementTitleRef.current.value = "";
       if (announcementBodyRef.current) announcementBodyRef.current.value = "";
-      setImageFile(null);
+      setImageFiles([]); // CHANGED: Reset the imageFiles array
     } catch (err) {
       console.error("Error adding announcement:", err);
       setErrorMsg("Couldn't add announcement.");
@@ -1075,14 +1077,19 @@ export default function App() {
                           </button>
                         </div>
                       )}
-                      {a.imageUrl && (
-                        <div className="w-full h-48 overflow-hidden">
-                          <img src={a.imageUrl} alt={a.title} className="w-full h-full object-cover" />
+                      {/* NEW: Loop through imageUrls array to display multiple images */}
+                      {a.imageUrls && a.imageUrls.length > 0 && (
+                        <div className="grid grid-cols-2 gap-1 p-2">
+                          {a.imageUrls.map((url, index) => (
+                            <div key={index} className="w-full h-24 overflow-hidden rounded-lg">
+                              <img src={url} alt={`Image ${index + 1}`} className="w-full h-full object-cover" />
+                            </div>
+                          ))}
                         </div>
                       )}
                       <div className="p-4 flex-1 flex flex-col">
                         <h3 className="text-xl font-semibold mb-2">{a.title}</h3>
-                        <p className="text-gray-700 mt-2 whitespace-pre-wrap flex-1">{a.body}</p>
+                        <p className="text-gray-700 whitespace-pre-wrap flex-1">{a.body}</p>
                         {a.createdAt && (
                           <p className="text-sm text-gray-400 mt-4">
                             {t.posted} {formatTimestamp(a.createdAt)}
@@ -1297,7 +1304,7 @@ export default function App() {
         {showModal === "announcement" && (
           <Modal
             title={editingItem ? t.modal.editAnnouncement : t.modal.createAnnouncement}
-            onClose={() => { setShowModal(null); setEditingItem(null); setImageFile(null); }}
+            onClose={() => { setShowModal(null); setEditingItem(null); setImageFiles([]); }}
           >
             <form onSubmit={editingItem ? handleUpdate : handleAddAnnouncement} className="space-y-4">
               <div>
@@ -1326,7 +1333,8 @@ export default function App() {
                   <label className="block text-sm font-medium mb-1">{t.modal.image}</label>
                   <input
                     type="file"
-                    onChange={(e) => setImageFile(e.target.files[0])}
+                    multiple // ADDED: Allow multiple file selection
+                    onChange={(e) => setImageFiles(Array.from(e.target.files))} // CHANGED: Store all files
                     className="w-full text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                   />
                 </div>
@@ -1334,7 +1342,7 @@ export default function App() {
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => { setShowModal(null); setEditingItem(null); setImageFile(null); }}
+                  onClick={() => { setShowModal(null); setEditingItem(null); setImageFiles([]); }}
                   className="bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
                 >
                   {t.modal.cancel}
