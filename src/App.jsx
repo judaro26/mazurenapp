@@ -58,6 +58,10 @@ const translations = {
       editDocument: "Edit Document",
       title: "Title",
       body: "Body",
+      name: "Name",
+      namePlaceholder: "e.g., John Doe",
+      apartment: "Apartment No.",
+      apartmentPlaceholder: "e.g., 101B",
       announcementPlaceholder: "e.g., Water shut-off notice",
       announcementBodyPlaceholder:
         "e.g., Please be advised that water will be turned off from...",
@@ -133,6 +137,10 @@ const translations = {
       editDocument: "Editar Documento",
       title: "Título",
       body: "Cuerpo",
+      name: "Nombre",
+      namePlaceholder: "ej., John Doe",
+      apartment: "Número de apartamento",
+      apartmentPlaceholder: "ej., 101B",
       announcementPlaceholder: "ej., Aviso de corte de agua",
       announcementBodyPlaceholder:
         "ej., Por favor, tenga en cuenta que el agua se cortará desde...",
@@ -288,6 +296,8 @@ export default function App() {
   // Refs
   const announcementTitleRef = useRef(null);
   const announcementBodyRef = useRef(null);
+  const pqrNameRef = useRef(null); // NEW: Ref for PQR name
+  const pqrApartmentRef = useRef(null); // NEW: Ref for PQR apartment number
   const pqrTitleRef = useRef(null);
   const pqrBodyRef = useRef(null);
   const documentNameRef = useRef(null);
@@ -439,7 +449,6 @@ export default function App() {
     }
   };
 
-  // NEW: handleUpdate function
   const handleUpdate = async (e) => {
     e.preventDefault();
     if (!db || !editingItem || !editingCollection) return;
@@ -457,7 +466,10 @@ export default function App() {
         break;
       case 'pqrs':
         path = `artifacts/${appId}/public/data/pqrs`;
+        // NEW: Get name and apartment number for update
         updatedData = {
+          name: pqrNameRef.current?.value,
+          apartment: pqrApartmentRef.current?.value,
           title: pqrTitleRef.current?.value,
           body: pqrBodyRef.current?.value,
         };
@@ -485,16 +497,21 @@ export default function App() {
     }
   };
 
+  // NEW: Updated handleAddPQR to include name and apartment number
   const handleAddPQR = async (e) => {
     e.preventDefault();
     if (!db) return;
+    const name = pqrNameRef.current?.value?.trim();
+    const apartment = pqrApartmentRef.current?.value?.trim();
     const title = pqrTitleRef.current?.value?.trim();
     const body = pqrBodyRef.current?.value?.trim();
-    if (!title || !body) return;
+    if (!title || !body || !name || !apartment) return;
 
     try {
       const path = `artifacts/${appId}/public/data/pqrs`;
       await addDoc(collection(db, path), {
+        name,
+        apartment,
         title,
         body,
         status: "Open",
@@ -502,6 +519,8 @@ export default function App() {
         authorId: userIdentifier,
       });
       setShowModal(null);
+      if (pqrNameRef.current) pqrNameRef.current.value = "";
+      if (pqrApartmentRef.current) pqrApartmentRef.current.value = "";
       if (pqrTitleRef.current) pqrTitleRef.current.value = "";
       if (pqrBodyRef.current) pqrBodyRef.current.value = "";
     } catch (err) {
@@ -936,7 +955,7 @@ export default function App() {
             <div className="bg-white p-6 rounded-2xl shadow-md">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold">{t.pqrs}</h2>
-                {isManager && (
+                {isLoggedIn && (
                   <button
                     onClick={() => {
                       setEditingItem(null);
@@ -1016,6 +1035,9 @@ export default function App() {
                         </div>
                       </div>
                       <p className="text-gray-700 mt-2 whitespace-pre-wrap">{p.body}</p>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Submitted by: {p.name} ({p.apartment})
+                      </p>
                       {p.createdAt && (
                         <p className="text-sm text-gray-400 mt-2">
                           {t.submitted} {formatTimestamp(p.createdAt)}
@@ -1175,6 +1197,28 @@ export default function App() {
             onClose={() => { setShowModal(null); setEditingItem(null); }}
           >
             <form onSubmit={editingItem ? handleUpdate : handleAddPQR} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">{t.modal.name}</label>
+                <input
+                  type="text"
+                  ref={pqrNameRef}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder={t.modal.namePlaceholder}
+                  required
+                  defaultValue={editingItem?.name || ''}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">{t.modal.apartment}</label>
+                <input
+                  type="text"
+                  ref={pqrApartmentRef}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder={t.modal.apartmentPlaceholder}
+                  required
+                  defaultValue={editingItem?.apartment || ''}
+                />
+              </div>
               <div>
                 <label className="block text-sm font-medium mb-1">{t.modal.title}</label>
                 <input
