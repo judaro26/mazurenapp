@@ -249,7 +249,7 @@ export default function App() {
   const [app, setApp] = useState(null);
   const [auth, setAuth] = useState(null);
   const [db, setDb] = useState(null);
-  const [storage, setStorage] = useState(null); 
+  const [storage, setStorage] = useState(null);
 
   const [userIdentifier, setUserIdentifier] = useState(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -298,27 +298,22 @@ export default function App() {
         const appInstance = getApps().length ? getApp() : initializeApp(firebaseConfig);
         const authInstance = getAuth(appInstance);
         const dbInstance = getFirestore(appInstance);
-        // NEW: Initialize Firebase Storage
         const storageInstance = getStorage(appInstance);
         setApp(appInstance);
         setAuth(authInstance);
         setDb(dbInstance);
         setStorage(storageInstance);
-
+        
         const unsub = onAuthStateChanged(authInstance, async (user) => {
           try {
             if (user) {
-              // NEW: Get the ID token result to access custom claims
               const idTokenResult = await user.getIdTokenResult(true);
               const isManagerClaim = idTokenResult.claims.isManager || false;
 
-              // Check if the user is a manager based on the claim
               setIsManager(isManagerClaim);
-
               setUserIdentifier(user.email || user.uid);
               setIsLoggedIn(true);
 
-              // NEW: Check if the user document exists and create it if not
               const userDocRef = doc(dbInstance, `artifacts/${appId}/public/data/users`, user.uid);
               const snap = await getDoc(userDocRef);
               if (!snap.exists()) {
@@ -412,7 +407,7 @@ export default function App() {
     try {
       // If an image file is selected, upload it to Firebase Storage
       if (imageFile) {
-        const storagePath = `announcements/${userId}-${Date.now()}-${imageFile.name}`;
+        const storagePath = `announcements/${userIdentifier}-${Date.now()}-${imageFile.name}`;
         const imageRef = ref(storage, storagePath);
         await uploadBytes(imageRef, imageFile);
         imageUrl = await getDownloadURL(imageRef);
@@ -425,7 +420,7 @@ export default function App() {
         // NEW: Conditionally add imageUrl
         imageUrl: imageUrl,
         createdAt: serverTimestamp(),
-        authorId: userId,
+        authorId: userIdentifier,
       });
       setShowModal(null);
       if (announcementTitleRef.current) announcementTitleRef.current.value = "";
@@ -453,7 +448,7 @@ export default function App() {
         body,
         status: "Open",
         createdAt: serverTimestamp(),
-        authorId: userId,
+        authorId: userIdentifier,
       });
       setShowModal(null);
       if (pqrTitleRef.current) pqrTitleRef.current.value = "";
@@ -486,7 +481,7 @@ export default function App() {
         name,
         url,
         createdAt: serverTimestamp(),
-        authorId: userId,
+        authorId: userIdentifier,
       });
       setShowModal(null);
       if (documentNameRef.current) documentNameRef.current.value = "";
@@ -543,6 +538,19 @@ export default function App() {
     } catch (err) {
       console.error("Failed to update PQR status:", err);
       setErrorMsg("Couldn't update status.");
+    }
+  };
+  
+  // NEW: Temporary function to set manager role
+  const setManagerRole = async () => {
+    const functions = getFunctions(app);
+    const setRole = httpsCallable(functions, 'setManagerRole');
+    try {
+      const result = await setRole({ email: 'your-manager-email@example.com', isManager: true });
+      console.log("Successfully set manager role:", result.data.result);
+      window.location.reload();
+    } catch (error) {
+      console.error("Error setting manager role:", error.message);
     }
   };
 
@@ -753,9 +761,16 @@ export default function App() {
             <p className="text-sm text-gray-600">{t.loggedInAs}</p>
             <p className="font-mono text-xs break-all mt-1">{userIdentifier}</p>
             <div className="flex justify-center sm:justify-end mt-2">
+              {/* NEW: Temporary button for manager role setting */}
+              <button
+                onClick={setManagerRole}
+                className="bg-green-600 text-white px-3 py-1 rounded-full text-xs font-semibold hover:bg-green-700 transition-colors"
+              >
+                Set Manager
+              </button>
               <button
                 onClick={toggleLanguage}
-                className="bg-gray-200 text-gray-800 px-3 py-1 rounded-full text-xs font-semibold hover:bg-gray-300 transition-colors"
+                className="ml-2 bg-gray-200 text-gray-800 px-3 py-1 rounded-full text-xs font-semibold hover:bg-gray-300 transition-colors"
               >
                 {language === "en" ? "Español" : "English"}
               </button>
