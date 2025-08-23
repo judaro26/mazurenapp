@@ -20,10 +20,8 @@ import {
   setDoc,
   updateDoc,
 } from "firebase/firestore";
-// NEW: Import Firebase Storage functions
+// Import Firebase Storage functions
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-// NEW: Import getFunctions and httpsCallable
-import { getFunctions, httpsCallable } from "firebase/functions";
 
 /**
  * ----------------------------------------------
@@ -266,7 +264,6 @@ export default function App() {
   const [documents, setDocuments] = useState([]);
   const [showModal, setShowModal] = useState(null);
 
-  // NEW: Add state for image upload
   const [imageFile, setImageFile] = useState(null);
   const [uploading, setUploading] = useState(false);
 
@@ -303,21 +300,20 @@ export default function App() {
         setAuth(authInstance);
         setDb(dbInstance);
         setStorage(storageInstance);
-        
+
         const unsub = onAuthStateChanged(authInstance, async (user) => {
           try {
             if (user) {
-              const idTokenResult = await user.getIdTokenResult(true);
-              const isManagerClaim = idTokenResult.claims.isManager || false;
-
-              setIsManager(isManagerClaim);
               setUserIdentifier(user.email || user.uid);
               setIsLoggedIn(true);
 
               const userDocRef = doc(dbInstance, `artifacts/${appId}/public/data/users`, user.uid);
               const snap = await getDoc(userDocRef);
-              if (!snap.exists()) {
+              if (snap.exists()) {
+                setIsManager(Boolean(snap.data()?.isManager));
+              } else {
                 await setDoc(userDocRef, { isManager: false, email: user.email || "anonymous" });
+                setIsManager(false);
               }
 
               setIsAuthReady(true);
@@ -393,7 +389,6 @@ export default function App() {
   /**
    * Actions
    */
-  // NEW: Updated handleAddAnnouncement to handle image uploads
   const handleAddAnnouncement = async (e) => {
     e.preventDefault();
     if (!db || !storage) return;
@@ -405,7 +400,6 @@ export default function App() {
     let imageUrl = null;
 
     try {
-      // If an image file is selected, upload it to Firebase Storage
       if (imageFile) {
         const storagePath = `announcements/${userIdentifier}-${Date.now()}-${imageFile.name}`;
         const imageRef = ref(storage, storagePath);
@@ -417,7 +411,6 @@ export default function App() {
       await addDoc(collection(db, path), {
         title,
         body,
-        // NEW: Conditionally add imageUrl
         imageUrl: imageUrl,
         createdAt: serverTimestamp(),
         authorId: userIdentifier,
@@ -468,7 +461,6 @@ export default function App() {
 
     // Basic URL validation
     try {
-      // eslint-disable-next-line no-new
       new URL(url);
     } catch {
       setErrorMsg("Please provide a valid URL.");
@@ -541,19 +533,6 @@ export default function App() {
     }
   };
   
-  // NEW: Temporary function to set manager role
-  const setManagerRole = async () => {
-    const functions = getFunctions(app);
-    const setRole = httpsCallable(functions, 'setManagerRole');
-    try {
-      const result = await setRole({ email: 'judaro26@gmail.com', isManager: true });
-      console.log("Successfully set manager role:", result.data.result);
-      window.location.reload();
-    } catch (error) {
-      console.error("Error setting manager role:", error.message);
-    }
-  };
-
   /**
    * Modal
    */
@@ -761,16 +740,9 @@ export default function App() {
             <p className="text-sm text-gray-600">{t.loggedInAs}</p>
             <p className="font-mono text-xs break-all mt-1">{userIdentifier}</p>
             <div className="flex justify-center sm:justify-end mt-2">
-              {/* NEW: Temporary button for manager role setting */}
-              <button
-                onClick={setManagerRole}
-                className="bg-green-600 text-white px-3 py-1 rounded-full text-xs font-semibold hover:bg-green-700 transition-colors"
-              >
-                Set Manager
-              </button>
               <button
                 onClick={toggleLanguage}
-                className="ml-2 bg-gray-200 text-gray-800 px-3 py-1 rounded-full text-xs font-semibold hover:bg-gray-300 transition-colors"
+                className="bg-gray-200 text-gray-800 px-3 py-1 rounded-full text-xs font-semibold hover:bg-gray-300 transition-colors"
               >
                 {language === "en" ? "Español" : "English"}
               </button>
@@ -835,7 +807,6 @@ export default function App() {
                   announcements.map((a) => (
                     <li key={a.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200">
                       <h3 className="text-xl font-semibold">{a.title}</h3>
-                      {/* NEW: Conditionally display image */}
                       {a.imageUrl && (
                         <div className="mt-4 overflow-hidden rounded-lg">
                           <img src={a.imageUrl} alt={a.title} className="w-full object-cover" />
@@ -993,7 +964,6 @@ export default function App() {
                   required
                 />
               </div>
-              {/* NEW: Add image file input */}
               <div>
                 <label className="block text-sm font-medium mb-1">{t.modal.image}</label>
                 <input
