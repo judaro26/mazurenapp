@@ -194,7 +194,6 @@ const translations = {
       managerLogin: "Iniciar sesión como administrador",
       roleManager: "Administrador",
       roleResident: "Residente",
-      roleAnonymous: "Usuario anónimo"
     },
     configMissing: {
       title: "Falta la configuración de Firebase",
@@ -292,7 +291,6 @@ export default function App() {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isManager, setIsManager] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  // NEW: State for user's details
   const [userEmail, setUserEmail] = useState(null);
   const [userApartment, setUserApartment] = useState(null);
 
@@ -359,16 +357,13 @@ export default function App() {
         const unsub = onAuthStateChanged(authInstance, async (user) => {
           try {
             if (user) {
-              // Always use the UID for the user identifier
               setUserIdentifier(user.uid);
               setIsLoggedIn(true);
-              // Set the user's email from the auth object
               setUserEmail(user.email || null);
-
+              
               if (user.isAnonymous) {
                 setIsManager(false);
                 setUserRole("anonymous");
-                // Clear resident-specific info for anonymous users
                 setUserApartment(null);
               } else {
                 const userDocRef = doc(dbInstance, `artifacts/${appId}/public/data/users`, user.uid);
@@ -378,10 +373,8 @@ export default function App() {
                   const isManagerStatus = Boolean(userData?.isManager);
                   setIsManager(isManagerStatus);
                   setUserRole(isManagerStatus ? "manager" : "resident");
-                  // Get details from Firestore document
                   setUserApartment(userData.apartment || null);
                 } else {
-                  // NEW: Use setDoc to create the user document with initial data
                   await setDoc(userDocRef, { 
                     isManager: false, 
                     email: user.email || null,
@@ -402,7 +395,6 @@ export default function App() {
               setIsLoggedIn(false);
               setIsManager(false);
               setUserRole(null);
-              // Clear user details on logout
               setUserEmail(null);
               setUserApartment(null);
               setIsAuthReady(true);
@@ -565,7 +557,6 @@ export default function App() {
         break;
       case 'pqrs':
         path = `artifacts/${appId}/public/data/pqrs`;
-        // Exclude status and authorId from resident updates
         updatedData = {
           name: pqrNameRef.current?.value,
           apartment: pqrApartmentRef.current?.value,
@@ -969,11 +960,10 @@ export default function App() {
           </div>
           <div className="text-center sm:text-right">
             <p className="text-sm text-gray-600">{t.loggedInAs}</p>
-            {/* UPDATED UI: Displaying email, apartment, and role */}
             {isLoggedIn && (
               <>
                 {userEmail && <p className="font-mono text-xs break-all mt-1">{userEmail}</p>}
-                {userApartment && <p className="text-sm text-gray-600 mt-1">Apt: {userApartment}</p>}
+                {userApartment && userRole === "resident" && <p className="text-sm text-gray-600 mt-1">Apt: {userApartment}</p>}
                 {userRole && (
                   <p className="font-semibold text-xs mt-1">
                     {userRole === "manager" ? t.login.roleManager : userRole === "resident" ? t.login.roleResident : t.login.roleAnonymous}
@@ -1049,34 +1039,34 @@ export default function App() {
                   </button>
                 )}
               </div>
-              <ul className="space-y-4">
+              <ul className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {announcements.length === 0 ? (
-                  <li className="text-gray-500 italic text-center py-4">{t.noAnnouncements}</li>
+                  <li className="text-gray-500 italic text-center py-4 col-span-full">{t.noAnnouncements}</li>
                 ) : (
                   announcements.map((a) => (
-                    <li key={a.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200 relative">
+                    <li key={a.id} className="bg-gray-50 rounded-2xl border border-gray-200 relative overflow-hidden flex flex-col h-full">
                       {isManager && (
-                        <div className="absolute top-2 right-2 flex space-x-2">
+                        <div className="absolute top-2 right-2 flex space-x-2 z-10">
                           <button
                             onClick={() => {
                               setEditingItem(a);
                               setEditingCollection('announcements');
                               setShowModal("announcement");
                             }}
-                            className="text-gray-400 hover:text-blue-600"
+                            className="bg-white p-2 rounded-full text-gray-400 hover:text-blue-600 shadow-md"
                             aria-label="Edit announcement"
                           >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                             </svg>
                           </button>
                           <button 
                             onClick={() => handleDelete('announcements', a.id)} 
-                            className="text-gray-400 hover:text-red-600"
+                            className="bg-white p-2 rounded-full text-gray-400 hover:text-red-600 shadow-md"
                             aria-label="Delete announcement"
                           >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <polyline points="3 6 5 6 21 6"></polyline>
                               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                               <line x1="10" y1="11" x2="10" y2="17"></line>
@@ -1085,18 +1075,20 @@ export default function App() {
                           </button>
                         </div>
                       )}
-                      <h3 className="text-xl font-semibold">{a.title}</h3>
                       {a.imageUrl && (
-                        <div className="mt-4 overflow-hidden rounded-lg">
-                          <img src={a.imageUrl} alt={a.title} className="w-full object-cover" />
+                        <div className="w-full h-48 overflow-hidden">
+                          <img src={a.imageUrl} alt={a.title} className="w-full h-full object-cover" />
                         </div>
                       )}
-                      <p className="text-gray-700 mt-2 whitespace-pre-wrap">{a.body}</p>
-                      {a.createdAt && (
-                        <p className="text-sm text-gray-400 mt-2">
-                          {t.posted} {formatTimestamp(a.createdAt)}
-                        </p>
-                      )}
+                      <div className="p-4 flex-1 flex flex-col">
+                        <h3 className="text-xl font-semibold mb-2">{a.title}</h3>
+                        <p className="text-gray-700 mt-2 whitespace-pre-wrap flex-1">{a.body}</p>
+                        {a.createdAt && (
+                          <p className="text-sm text-gray-400 mt-4">
+                            {t.posted} {formatTimestamp(a.createdAt)}
+                          </p>
+                        )}
+                      </div>
                     </li>
                   ))
                 )}
@@ -1127,7 +1119,6 @@ export default function App() {
                 ) : (
                   pqrs.map((p) => (
                     <li key={p.id} className="bg-gray-50 p-4 rounded-xl border border-gray-200 relative">
-                      {/* UPDATED UI: Show edit/delete buttons for managers OR if the user is the author */}
                       {(isManager || (auth?.currentUser?.uid === p.authorId)) && (
                         <div className="absolute top-2 right-2 flex space-x-2">
                           <button
