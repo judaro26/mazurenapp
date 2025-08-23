@@ -22,6 +22,8 @@ import {
 } from "firebase/firestore";
 // NEW: Import Firebase Storage functions
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+// NEW: Import getFunctions and httpsCallable
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 /**
  * ----------------------------------------------
@@ -247,7 +249,7 @@ export default function App() {
   const [app, setApp] = useState(null);
   const [auth, setAuth] = useState(null);
   const [db, setDb] = useState(null);
-  const [storage, setStorage] = useState(null); // NEW: Add storage state
+  const [storage, setStorage] = useState(null); 
 
   const [userIdentifier, setUserIdentifier] = useState(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -262,7 +264,7 @@ export default function App() {
   const [announcements, setAnnouncements] = useState([]);
   const [pqrs, setPqrs] = useState([]);
   const [documents, setDocuments] = useState([]);
-  const [showModal, setShowModal] = useState(null); // 'announcement' | 'pqr' | 'document'
+  const [showModal, setShowModal] = useState(null);
 
   // NEW: Add state for image upload
   const [imageFile, setImageFile] = useState(null);
@@ -306,17 +308,21 @@ export default function App() {
         const unsub = onAuthStateChanged(authInstance, async (user) => {
           try {
             if (user) {
+              // NEW: Get the ID token result to access custom claims
+              const idTokenResult = await user.getIdTokenResult(true);
+              const isManagerClaim = idTokenResult.claims.isManager || false;
+
+              // Check if the user is a manager based on the claim
+              setIsManager(isManagerClaim);
+
               setUserIdentifier(user.email || user.uid);
               setIsLoggedIn(true);
 
-              // Role doc
+              // NEW: Check if the user document exists and create it if not
               const userDocRef = doc(dbInstance, `artifacts/${appId}/public/data/users`, user.uid);
               const snap = await getDoc(userDocRef);
-              if (snap.exists()) {
-                setIsManager(Boolean(snap.data()?.isManager));
-              } else {
+              if (!snap.exists()) {
                 await setDoc(userDocRef, { isManager: false, email: user.email || "anonymous" });
-                setIsManager(false);
               }
 
               setIsAuthReady(true);
