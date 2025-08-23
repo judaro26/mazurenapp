@@ -102,6 +102,9 @@ const translations = {
       invalidCredentials: "Invalid email or password. Please try again.",
       residentLogin: "Resident Login",
       managerLogin: "Manager Login",
+      roleManager: "Manager",
+      roleResident: "Resident",
+      roleAnonymous: "Anonymous User"
     },
     configMissing: {
       title: "Missing Firebase configuration",
@@ -189,6 +192,9 @@ const translations = {
         "Correo electrónico o contraseña incorrectos. Por favor, inténtelo de nuevo.",
       residentLogin: "Iniciar sesión como residente",
       managerLogin: "Iniciar sesión como administrador",
+      roleManager: "Administrador",
+      roleResident: "Residente",
+      roleAnonymous: "Usuario anónimo"
     },
     configMissing: {
       title: "Falta la configuración de Firebase",
@@ -282,6 +288,7 @@ export default function App() {
   const [storage, setStorage] = useState(null);
 
   const [userIdentifier, setUserIdentifier] = useState(null);
+  const [userRole, setUserRole] = useState(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isManager, setIsManager] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -352,13 +359,21 @@ export default function App() {
               setUserIdentifier(user.email || user.uid);
               setIsLoggedIn(true);
 
-              const userDocRef = doc(dbInstance, `artifacts/${appId}/public/data/users`, user.uid);
-              const snap = await getDoc(userDocRef);
-              if (snap.exists()) {
-                setIsManager(Boolean(snap.data()?.isManager));
-              } else {
-                await setDoc(userDocRef, { isManager: false, email: user.email || "anonymous" });
+              if (user.isAnonymous) {
                 setIsManager(false);
+                setUserRole("anonymous");
+              } else {
+                const userDocRef = doc(dbInstance, `artifacts/${appId}/public/data/users`, user.uid);
+                const snap = await getDoc(userDocRef);
+                if (snap.exists()) {
+                  const isManagerStatus = Boolean(snap.data()?.isManager);
+                  setIsManager(isManagerStatus);
+                  setUserRole(isManagerStatus ? "manager" : "resident");
+                } else {
+                  await setDoc(userDocRef, { isManager: false, email: user.email || "anonymous" });
+                  setIsManager(false);
+                  setUserRole("resident");
+                }
               }
 
               setIsAuthReady(true);
@@ -367,6 +382,7 @@ export default function App() {
               setUserIdentifier(null);
               setIsLoggedIn(false);
               setIsManager(false);
+              setUserRole(null);
               setIsAuthReady(true);
               setLoading(false);
             }
@@ -409,6 +425,7 @@ export default function App() {
         (err) => console.error("Announcements listener error:", err)
       );
 
+      // FIX: Conditionally fetch PQRs based on user role and ID
       if (isManager) {
         unsubPqrs = onSnapshot(
           query(collection(db, pqrsPath), orderBy("createdAt", "desc")),
@@ -854,11 +871,6 @@ export default function App() {
             <p className="text-gray-600 mb-6">{t.login.subtitle}</p>
           </div>
 
-          <div className="flex justify-center mb-6" role="tablist" aria-label="Login mode">
-            {/* REMOVED TABS FOR UNIFIED LOGIN */}
-          </div>
-
-          {/* NEW UNIFIED LOGIN FORM */}
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1">{t.login.emailLabel}</label>
@@ -934,7 +946,11 @@ export default function App() {
           </div>
           <div className="text-center sm:text-right">
             <p className="text-sm text-gray-600">{t.loggedInAs}</p>
-            <p className="font-mono text-xs break-all mt-1">{userIdentifier}</p>
+            {userRole && (
+              <p className="font-semibold text-xs mt-1">
+                {userRole === "manager" ? t.login.roleManager : userRole === "resident" ? t.login.roleResident : t.login.roleAnonymous}
+              </p>
+            )}
             <div className="flex justify-center sm:justify-end mt-2">
               <button
                 onClick={toggleLanguage}
@@ -962,22 +978,26 @@ export default function App() {
           >
             {t.announcements}
           </button>
-          <button
-            onClick={() => setView("pqrs")}
-            className={`flex-1 py-2 px-3 sm:px-4 rounded-full font-semibold transition-colors duration-200 ${
-              view === "pqrs" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:bg-gray-200"
-            }`}
-          >
-            {t.pqrs}
-          </button>
-          <button
-            onClick={() => setView("documents")}
-            className={`flex-1 py-2 px-3 sm:px-4 rounded-full font-semibold transition-colors duration-200 ${
-              view === "documents" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:bg-gray-200"
-            }`}
-          >
-            {t.documents}
-          </button>
+          {isLoggedIn && (
+            <>
+              <button
+                onClick={() => setView("pqrs")}
+                className={`flex-1 py-2 px-3 sm:px-4 rounded-full font-semibold transition-colors duration-200 ${
+                  view === "pqrs" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                {t.pqrs}
+              </button>
+              <button
+                onClick={() => setView("documents")}
+                className={`flex-1 py-2 px-3 sm:px-4 rounded-full font-semibold transition-colors duration-200 ${
+                  view === "documents" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                {t.documents}
+              </button>
+            </>
+          )}
         </nav>
 
         {/* Content */}
