@@ -312,7 +312,6 @@ export default function App() {
   const [registerError, setRegisterError] = useState("");
 
   // Login form
-  const [loginMode, setLoginMode] = useState("resident");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -410,7 +409,6 @@ export default function App() {
         (err) => console.error("Announcements listener error:", err)
       );
 
-      // FIX: Conditionally fetch PQRs based on user role and ID
       if (isManager) {
         unsubPqrs = onSnapshot(
           query(collection(db, pqrsPath), orderBy("createdAt", "desc")),
@@ -424,7 +422,7 @@ export default function App() {
           (err) => console.error("PQRs listener error:", err)
         );
       } else {
-        setPqrs([]); // Clear PQRs if not logged in
+        setPqrs([]);
       }
       
       unsubDocs = onSnapshot(
@@ -857,133 +855,66 @@ export default function App() {
           </div>
 
           <div className="flex justify-center mb-6" role="tablist" aria-label="Login mode">
-            <button
-              onClick={() => {
-                setLoginMode("resident");
-                setLoginError("");
-                setEmail("");
-                setPassword("");
-              }}
-              className={`px-6 py-2 rounded-full font-semibold transition-colors duration-200 ${
-                loginMode === "resident" ? "bg-blue-600 text-white shadow" : "bg-gray-200 text-gray-600"
-              }`}
-              role="tab"
-              aria-selected={loginMode === "resident"}
-            >
-              Resident
-            </button>
-            <button
-              onClick={() => {
-                setLoginMode("manager");
-                setLoginError("");
-                setEmail("");
-                setPassword("");
-              }}
-              className={`ml-2 px-6 py-2 rounded-full font-semibold transition-colors duration-200 ${
-                loginMode === "manager" ? "bg-blue-600 text-white shadow" : "bg-gray-200 text-gray-600"
-              }`}
-              role="tab"
-              aria-selected={loginMode === "manager"}
-            >
-              Manager
-            </button>
+            {/* REMOVED TABS FOR UNIFIED LOGIN */}
           </div>
 
-          {loginMode === "manager" && (
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">{t.login.emailLabel}</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder={t.login.emailPlaceholder}
-                  required
-                  autoComplete="username"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">{t.login.passwordLabel}</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder={t.login.passwordPlaceholder}
-                  required
-                  autoComplete="current-password"
-                />
-                {loginError && <p className="text-red-500 text-xs mt-2">{loginError}</p>}
-              </div>
-              <button
-                type="submit"
-                className="w-full bg-purple-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-purple-700 transition-colors"
-              >
-                {t.login.loginButton}
-              </button>
-            </form>
-          )}
-
-          {loginMode === "resident" && (
-            <>
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">{t.login.emailLabel}</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder={t.login.emailPlaceholder}
-                    required
-                    autoComplete="username"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">{t.login.passwordLabel}</label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder={t.login.passwordPlaceholder}
-                    required
-                    autoComplete="current-password"
-                  />
-                  {loginError && <p className="text-red-500 text-xs mt-2">{loginError}</p>}
-                </div>
-                <button
-                  type="submit"
-                  className="w-full bg-purple-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-purple-700 transition-colors"
-                >
-                  {t.login.loginButton}
-                </button>
-              </form>
-              <div className="relative flex py-4 items-center">
-                <div className="flex-grow border-t border-gray-300" />
-                <span className="flex-shrink mx-4 text-gray-500 text-sm">or</span>
-                <div className="flex-grow border-t border-gray-300" />
-              </div>
-              <button
-                onClick={handleStandardLogin}
-                className="w-full bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
-              >
-                {t.login.continueButton}
-              </button>
-              <div className="relative flex py-4 items-center">
-                <div className="flex-grow border-t border-gray-300" />
-                <span className="flex-shrink mx-4 text-gray-500 text-sm">or</span>
-                <div className="flex-grow border-t border-gray-300" />
-              </div>
-              <button
-                onClick={() => setShowRegisterForm(true)}
-                className="w-full bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
-              >
-                {t.login.registerButton}
-              </button>
-            </>
-          )}
+          {/* NEW UNIFIED LOGIN FORM */}
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">{t.login.emailLabel}</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder={t.login.emailPlaceholder}
+                required
+                autoComplete="username"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">{t.login.passwordLabel}</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder={t.login.passwordPlaceholder}
+                required
+                autoComplete="current-password"
+              />
+              {loginError && <p className="text-red-500 text-xs mt-2">{loginError}</p>}
+            </div>
+            <button
+              type="submit"
+              className="w-full bg-purple-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-purple-700 transition-colors"
+            >
+              {t.login.loginButton}
+            </button>
+          </form>
+          
+          <div className="relative flex py-4 items-center">
+            <div className="flex-grow border-t border-gray-300" />
+            <span className="flex-shrink mx-4 text-gray-500 text-sm">or</span>
+            <div className="flex-grow border-t border-gray-300" />
+          </div>
+          <button
+            onClick={handleStandardLogin}
+            className="w-full bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
+          >
+            {t.login.continueButton}
+          </button>
+          <div className="relative flex py-4 items-center">
+            <div className="flex-grow border-t border-gray-300" />
+            <span className="flex-shrink mx-4 text-gray-500 text-sm">or</span>
+            <div className="flex-grow border-t border-gray-300" />
+          </div>
+          <button
+            onClick={() => setShowRegisterForm(true)}
+            className="w-full bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
+          >
+            {t.login.registerButton}
+          </button>
         </div>
       </div>
     );
