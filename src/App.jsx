@@ -292,6 +292,9 @@ export default function App() {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isManager, setIsManager] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  // NEW: State for user's details
+  const [userEmail, setUserEmail] = useState(null);
+  const [userApartment, setUserApartment] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
@@ -356,24 +359,40 @@ export default function App() {
         const unsub = onAuthStateChanged(authInstance, async (user) => {
           try {
             if (user) {
-              // CHANGE 1: Consistently use the UID for the user identifier
+              // Always use the UID for the user identifier
               setUserIdentifier(user.uid);
               setIsLoggedIn(true);
 
               if (user.isAnonymous) {
                 setIsManager(false);
                 setUserRole("anonymous");
+                // Clear resident-specific info for anonymous users
+                setUserEmail(null);
+                setUserApartment(null);
               } else {
                 const userDocRef = doc(dbInstance, `artifacts/${appId}/public/data/users`, user.uid);
                 const snap = await getDoc(userDocRef);
                 if (snap.exists()) {
-                  const isManagerStatus = Boolean(snap.data()?.isManager);
+                  const userData = snap.data();
+                  const isManagerStatus = Boolean(userData?.isManager);
                   setIsManager(isManagerStatus);
                   setUserRole(isManagerStatus ? "manager" : "resident");
+                  // Get details from Firestore document
+                  setUserEmail(userData.email || null);
+                  setUserApartment(userData.apartment || null);
                 } else {
-                  await setDoc(userDocRef, { isManager: false, email: user.email || "anonymous" });
+                  // NEW: Use setDoc to create the user document with initial data
+                  await setDoc(userDocRef, { 
+                    isManager: false, 
+                    email: user.email || null,
+                    name: null,
+                    apartment: null,
+                    phone: null
+                  });
                   setIsManager(false);
                   setUserRole("resident");
+                  setUserEmail(user.email || null);
+                  setUserApartment(null);
                 }
               }
 
@@ -384,6 +403,9 @@ export default function App() {
               setIsLoggedIn(false);
               setIsManager(false);
               setUserRole(null);
+              // Clear user details on logout
+              setUserEmail(null);
+              setUserApartment(null);
               setIsAuthReady(true);
               setLoading(false);
             }
@@ -491,7 +513,7 @@ export default function App() {
 
   const handleAddAnnouncement = async (e) => {
     e.preventDefault();
-    if (!db || !storage) return;
+    if (!db || !storage || !auth?.currentUser?.uid) return;
     const title = announcementTitleRef.current?.value?.trim();
     const body = announcementBodyRef.current?.value?.trim();
     if (!title || !body) return;
@@ -501,7 +523,7 @@ export default function App() {
 
     try {
       if (imageFile) {
-        const storagePath = `announcements/${userIdentifier}-${Date.now()}-${imageFile.name}`;
+        const storagePath = `announcements/${auth.currentUser.uid}-${Date.now()}-${imageFile.name}`;
         const imageRef = ref(storage, storagePath);
         await uploadBytes(imageRef, imageFile);
         imageUrl = await getDownloadURL(imageRef);
@@ -513,7 +535,7 @@ export default function App() {
         body,
         imageUrl: imageUrl,
         createdAt: serverTimestamp(),
-        authorId: auth.currentUser.uid, // CHANGE 2: Use auth.currentUser.uid
+        authorId: auth.currentUser.uid,
       });
       setShowModal(null);
       if (announcementTitleRef.current) announcementTitleRef.current.value = "";
@@ -576,7 +598,7 @@ export default function App() {
 
   const handleAddPQR = async (e) => {
     e.preventDefault();
-    if (!db || !storage || !auth?.currentUser?.uid) return; // Add check for UID
+    if (!db || !storage || !auth?.currentUser?.uid) return;
 
     const name = pqrNameRef.current?.value?.trim();
     const apartment = pqrApartmentRef.current?.value?.trim();
@@ -589,7 +611,7 @@ export default function App() {
 
     try {
       if (pqrFile) {
-        const storagePath = `pqrs/${auth.currentUser.uid}-${Date.now()}-${pqrFile.name}`; // Use UID here
+        const storagePath = `pqrs/${auth.currentUser.uid}-${Date.now()}-${pqrFile.name}`;
         const fileRef = ref(storage, storagePath);
         await uploadBytes(fileRef, pqrFile);
         fileUrl = await getDownloadURL(fileRef);
@@ -604,7 +626,6 @@ export default function App() {
         fileUrl: fileUrl,
         status: "Open",
         createdAt: serverTimestamp(),
-        // CHANGE 3: Use the UID for the authorId
         authorId: auth.currentUser.uid,
       });
       setShowModal(null);
@@ -623,7 +644,7 @@ export default function App() {
 
   const handleAddDocument = async (e) => {
     e.preventDefault();
-    if (!db) return;
+    if (!db || !auth?.currentUser?.uid) return;
     const name = documentNameRef.current?.value?.trim();
     const url = documentUrlRef.current?.value?.trim();
     if (!name || !url) return;
@@ -642,7 +663,7 @@ export default function App() {
         name,
         url,
         createdAt: serverTimestamp(),
-        authorId: auth.currentUser.uid, // CHANGE 4: Use auth.currentUser.uid
+        authorId: auth.currentUser.uid,
       });
       setShowModal(null);
       if (documentNameRef.current) documentNameRef.current.value = "";
@@ -948,13 +969,17 @@ export default function App() {
           </div>
           <div className="text-center sm:text-right">
             <p className="text-sm text-gray-600">{t.loggedInAs}</p>
-            {userIdentifier && userRole !== "anonymous" && (
-              <p className="font-mono text-xs break-all mt-1">{userIdentifier}</p>
-            )}
-            {userRole && (
-              <p className="font-semibold text-xs mt-1">
-                {userRole === "manager" ? t.login.roleManager : userRole === "resident" ? t.login.roleResident : t.login.roleAnonymous}
-              </p>
+            {/* UPDATED UI: Displaying email, apartment, and role */}
+            {isLoggedIn && (
+              <>
+                {userEmail && <p className="font-mono text-xs break-all mt-1">{userEmail}</p>}
+                {userApartment && <p className="text-sm text-gray-600 mt-1">Apt: {userApartment}</p>}
+                {userRole && (
+                  <p className="font-semibold text-xs mt-1">
+                    {userRole === "manager" ? t.login.roleManager : userRole === "resident" ? t.login.roleResident : t.login.roleAnonymous}
+                  </p>
+                )}
+              </>
             )}
             <div className="flex justify-center sm:justify-end mt-2">
               <button
