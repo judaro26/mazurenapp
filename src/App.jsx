@@ -425,7 +425,6 @@ export default function App() {
         (err) => console.error("Announcements listener error:", err)
       );
 
-      // FIX: Conditionally fetch PQRs based on user role and ID
       if (isManager) {
         unsubPqrs = onSnapshot(
           query(collection(db, pqrsPath), orderBy("createdAt", "desc")),
