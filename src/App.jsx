@@ -546,7 +546,7 @@ export default function App() {
     const functions = getFunctions(app);
     const setRole = httpsCallable(functions, 'setManagerRole');
     try {
-      const result = await setRole({ email: 'your-manager-email@example.com', isManager: true });
+      const result = await setRole({ email: 'judaro26@gmail.com', isManager: true });
       console.log("Successfully set manager role:", result.data.result);
       window.location.reload();
     } catch (error) {
