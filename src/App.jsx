@@ -233,18 +233,19 @@ export default function App() {
   const [configError, setConfigError] = useState(!firebaseConfig);
 
   const appId = useMemo(() => {
-      const candidate =
-        (typeof window !== "undefined" && window.__app_id) ||
-        import.meta.env.VITE_APP_APP_ID || // Corrected line
-        "default-app-id";
-      return String(candidate);
-    }, []);
+    const candidate =
+      (typeof window !== "undefined" && window.__app_id) ||
+      import.meta.env.VITE_APP_APP_ID ||
+      "default-app-id";
+    return String(candidate);
+  }, []);
 
   const [app, setApp] = useState(null);
   const [auth, setAuth] = useState(null);
   const [db, setDb] = useState(null);
 
-  const [userId, setUserId] = useState(null);
+  // ↓ CORRECTION 1: Change state variable from userId to userIdentifier
+  const [userIdentifier, setUserIdentifier] = useState(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isManager, setIsManager] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -294,7 +295,8 @@ export default function App() {
         const unsub = onAuthStateChanged(authInstance, async (user) => {
           try {
             if (user) {
-              setUserId(user.uid);
+              // ↓ CORRECTION 2: Use email for display, falling back to "Anonymous" or UUID
+              setUserIdentifier(user.email || user.uid);
               setIsLoggedIn(true);
 
               // Role doc
@@ -310,7 +312,8 @@ export default function App() {
               setIsAuthReady(true);
               setLoading(false);
             } else {
-              setUserId(null);
+              // ↓ CORRECTION 3: Set userIdentifier to null on logout
+              setUserIdentifier(null);
               setIsLoggedIn(false);
               setIsManager(false);
               setIsAuthReady(true);
@@ -716,7 +719,8 @@ export default function App() {
           </div>
           <div className="text-center sm:text-right">
             <p className="text-sm text-gray-600">{t.loggedInAs}</p>
-            <p className="font-mono text-xs break-all mt-1">{userId}</p>
+            {/* ↓ CORRECTION 4: Display userIdentifier instead of userId */}
+            <p className="font-mono text-xs break-all mt-1">{userIdentifier}</p>
             <div className="flex justify-center sm:justify-end mt-2">
               <button
                 onClick={toggleLanguage}
