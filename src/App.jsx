@@ -233,12 +233,12 @@ export default function App() {
   const [configError, setConfigError] = useState(!firebaseConfig);
 
   const appId = useMemo(() => {
-    const candidate =
-      (typeof window !== "undefined" && window.__app_id) ||
-      process.env.REACT_APP_APP_ID ||
-      "default-app-id";
-    return String(candidate);
-  }, []);
+      const candidate =
+        (typeof window !== "undefined" && window.__app_id) ||
+        import.meta.env.VITE_APP_APP_ID || // Corrected line
+        "default-app-id";
+      return String(candidate);
+    }, []);
 
   const [app, setApp] = useState(null);
   const [auth, setAuth] = useState(null);
