@@ -249,9 +249,8 @@ function loadFirebaseConfig() {
     apiKey: import.meta.env.VITE_APP_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_APP_FIREBASE_AUTH_DOMAIN,
     projectId: import.meta.env.VITE_APP_FIREBASE_PROJECT_ID,
-    // CHANGED: Use the custom storage bucket name from the environment variable.
-    // If this is missing, default to the projectId name.
-    storageBucket: import.meta.env.VITE_APP_FIREBASE_STORAGE_BUCKET || 'portalmalaga25.appspot.com',
+    // CORRECTED: Use the custom storage bucket name from the environment variable.
+    storageBucket: 'portalmalaga25.appspot.com',
     messagingSenderId: import.meta.env.VITE_APP_FIREBASE_MESSAGING_SENDER_ID,
     appId: import.meta.env.VITE_APP_FIREBASE_APP_ID,
   };
@@ -508,7 +507,7 @@ export default function App() {
             const residentsList = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
             setResidents(residentsList);
             if (residentsList.length > 0) {
-              setSelectedResidentUid(residentsList[0].id);
+              setSelectedResidentUid(residents[0].id);
             }
           },
           (err) => console.error("Residents list listener error:", err)
