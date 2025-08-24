@@ -15,46 +15,41 @@ exports.handler = async (event, context) => {
     projectId: 'portalmalaga2025',
     credentials: JSON.parse(process.env.GOOGLE_CLOUD_CREDENTIALS),
   });
-
+  
   const bucketName = 'portalmalaga2025.appspot.com';
   const bucket = storage.bucket(bucketName);
 
   return new Promise((resolve, reject) => {
-    // CORRECTED: Call Busboy as a function, not a constructor
     const busboy = Busboy({ headers: event.headers });
     const fields = {};
-    const fileWrites = [];
-    let fileUrl = '';
+    const filePromises = [];
 
     busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
-      const folderPath = fields.folderPath || 'general';
-      const filePath = `private_files/${fields.residentUid || 'unknown'}/${folderPath}/${filename}`;
-      const gcsFile = bucket.file(filePath);
+      const promise = new Promise((resolveFile, rejectFile) => {
+        const folderPath = fields.folderPath || 'general';
+        const filePath = `private_files/${fields.residentUid || 'unknown'}/${folderPath}/${filename}`;
+        const gcsFile = bucket.file(filePath);
 
-      // Create a write stream to upload the file to GCS
-      const writeStream = gcsFile.createWriteStream({
-        metadata: {
-          contentType: mimetype,
-        },
-      });
+        const writeStream = gcsFile.createWriteStream({
+          metadata: {
+            contentType: mimetype,
+          },
+        });
 
-      // Pipe the file stream from the request into the GCS write stream
-      file.pipe(writeStream);
+        file.pipe(writeStream);
 
-      // Handle events for the write stream
-      writeStream.on('finish', () => {
-        gcsFile.makePublic().then(() => {
-          fileUrl = gcsFile.publicUrl();
-          fileWrites.push(Promise.resolve());
+        writeStream.on('finish', () => {
+          gcsFile.makePublic().then(() => {
+            const fileUrl = gcsFile.publicUrl();
+            resolveFile(fileUrl);
+          }).catch(rejectFile);
+        });
+
+        writeStream.on('error', (err) => {
+          rejectFile(new Error(`Upload to GCS failed: ${err.message}`));
         });
       });
-
-      writeStream.on('error', (err) => {
-        reject({
-          statusCode: 500,
-          body: JSON.stringify({ error: `Upload to GCS failed: ${err.message}` }),
-        });
-      });
+      filePromises.push(promise);
     });
 
     busboy.on('field', (fieldname, val) => {
@@ -63,10 +58,10 @@ exports.handler = async (event, context) => {
 
     busboy.on('finish', async () => {
       try {
-        await Promise.all(fileWrites);
+        const fileUrls = await Promise.all(filePromises);
         resolve({
           statusCode: 200,
-          body: JSON.stringify({ fileUrl }),
+          body: JSON.stringify({ fileUrl: fileUrls[0] || '' }),
         });
       } catch (error) {
         reject({
