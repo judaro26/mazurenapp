@@ -6,6 +6,7 @@ exports.handler = async (event, context) => {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
+  // Ensure GOOGLE_CLOUD_CREDENTIALS is set in Netlify's environment variables
   if (!process.env.GOOGLE_CLOUD_CREDENTIALS) {
     return { statusCode: 500, body: 'Missing Google Cloud credentials.' };
   }
@@ -22,12 +23,16 @@ exports.handler = async (event, context) => {
     const busboy = Busboy({ headers: event.headers });
     const fields = {};
     const filePromises = [];
-    let fileUrl = '';
+
+    busboy.on('field', (fieldname, val) => {
+      fields[fieldname] = val;
+    });
 
     busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
       const promise = new Promise((resolveFile, rejectFile) => {
         const folderPath = fields.folderPath || 'general';
-        const filePath = `private_files/${fields.residentUid || 'unknown'}/${folderPath}/${filename}`;
+        const residentUid = fields.residentUid || 'unknown';
+        const filePath = `private_files/${residentUid}/${folderPath}/${filename}`;
         const gcsFile = bucket.file(filePath);
 
         const writeStream = gcsFile.createWriteStream({
@@ -39,9 +44,8 @@ exports.handler = async (event, context) => {
         file.pipe(writeStream);
 
         writeStream.on('finish', () => {
-          const publicUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
-          fileUrl = publicUrl;
-          resolveFile();
+          const fileUrl = `https://storage.googleapis.com/${bucketName}/${encodeURIComponent(filePath)}`;
+          resolveFile(fileUrl);
         });
 
         writeStream.on('error', (err) => {
@@ -51,16 +55,12 @@ exports.handler = async (event, context) => {
       filePromises.push(promise);
     });
 
-    busboy.on('field', (fieldname, val) => {
-      fields[fieldname] = val;
-    });
-
     busboy.on('finish', async () => {
       try {
-        await Promise.all(filePromises);
+        const fileUrls = await Promise.all(filePromises);
         resolve({
           statusCode: 200,
-          body: JSON.stringify({ fileUrl }),
+          body: JSON.stringify({ fileUrl: fileUrls[0] || '' }),
         });
       } catch (error) {
         resolve({
