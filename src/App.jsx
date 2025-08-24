@@ -311,7 +311,7 @@ export default function App() {
   // NEW STATES FOR PRIVATE DOCS
   const [residents, setResidents] = useState([]);
   const [privateDocuments, setPrivateDocuments] = useState([]);
-  const privateFilesRef = useRef(null);
+  const [selectedPrivateFiles, setSelectedPrivateFiles] = useState([]); // CHANGED: Added state to manage selected files
   const privateFolderNameRef = useRef(null);
   const [selectedResidentUid, setSelectedResidentUid] = useState("");
 
@@ -1691,12 +1691,14 @@ export default function App() {
                   ref={privateFilesRef}
                   className="w-full text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                   required
+                  // CHANGED: We now manage the files in state to ensure proper validation
+                  onChange={(e) => setSelectedPrivateFiles(Array.from(e.target.files))}
                 />
               </div>
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => { setShowModal(null); }}
+                  onClick={() => { setShowModal(null); setSelectedPrivateFiles([]); }} // CHANGED: Clear state on close
                   className="bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
                 >
                   {t.modal.cancel}
@@ -1704,7 +1706,7 @@ export default function App() {
                 <button
                   type="submit"
                   className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={uploading}
+                  disabled={uploading || !selectedPrivateFiles.length} // CHANGED: Disable button if no files are selected
                 >
                   {uploading ? t.loading : t.modal.upload}
                 </button>
