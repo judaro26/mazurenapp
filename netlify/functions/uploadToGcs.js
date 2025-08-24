@@ -6,6 +6,7 @@ exports.handler = async (event, context) => {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
+  // Ensure GOOGLE_CLOUD_CREDENTIALS is set in Netlify's environment variables
   if (!process.env.GOOGLE_CLOUD_CREDENTIALS) {
     return { statusCode: 500, body: 'Missing Google Cloud credentials.' };
   }
@@ -21,9 +22,7 @@ exports.handler = async (event, context) => {
   return new Promise((resolve, reject) => {
     const busboy = Busboy({ headers: event.headers });
     const fields = {};
-    let fileUploadFinished = false;
-    let fileUrl = '';
-    let uploadedFileName = '';
+    const filePromises = [];
 
     busboy.on('field', (fieldname, val) => {
       fields[fieldname] = val;
@@ -31,45 +30,43 @@ exports.handler = async (event, context) => {
 
     busboy.on('file', (fieldname, file, filenameInfo) => {
       const { filename, encoding, mimetype } = filenameInfo;
-      uploadedFileName = filename;
-      const folderPath = fields.folderPath || 'general';
-      const residentUid = fields.residentUid || 'unknown';
-      const filePath = `private_files/${residentUid}/${folderPath}/${uploadedFileName}`;
-      const gcsFile = bucket.file(filePath);
+      const promise = new Promise((resolveFile, rejectFile) => {
+        const folderPath = fields.folderPath || 'general';
+        const residentUid = fields.residentUid || 'unknown';
+        const filePath = `private_files/${residentUid}/${folderPath}/${filename}`;
+        const gcsFile = bucket.file(filePath);
 
-      const writeStream = gcsFile.createWriteStream({
-        metadata: {
-          contentType: mimetype,
-        },
-      });
+        const writeStream = gcsFile.createWriteStream({
+          metadata: {
+            contentType: mimetype,
+          },
+        });
 
-      file.pipe(writeStream);
+        file.pipe(writeStream);
 
-      writeStream.on('finish', () => {
-        const publicUrl = `https://storage.googleapis.com/${bucketName}/${encodeURIComponent(filePath)}`;
-        fileUrl = publicUrl;
-        fileUploadFinished = true;
-      });
+        writeStream.on('finish', () => {
+          const fileUrl = `https://storage.googleapis.com/${bucketName}/${encodeURIComponent(filePath)}`;
+          resolveFile(fileUrl);
+        });
 
-      writeStream.on('error', (err) => {
-        reject({
-          statusCode: 500,
-          body: JSON.stringify({ error: `Upload to GCS failed: ${err.message}` }),
+        writeStream.on('error', (err) => {
+          rejectFile(new Error(`Upload to GCS failed: ${err.message}`));
         });
       });
+      filePromises.push(promise);
     });
 
-    busboy.on('finish', () => {
-      if (fileUploadFinished) {
+    busboy.on('finish', async () => {
+      try {
+        const fileUrls = await Promise.all(filePromises);
         resolve({
           statusCode: 200,
-          body: JSON.stringify({ fileUrl }),
+          body: JSON.stringify({ fileUrl: fileUrls[0] || '' }),
         });
-      } else {
-        // Handle case where file event might not have fired
+      } catch (error) {
         resolve({
           statusCode: 500,
-          body: JSON.stringify({ error: 'File upload stream did not complete.' }),
+          body: JSON.stringify({ error: `Server-side error: ${error.message}` }),
         });
       }
     });
