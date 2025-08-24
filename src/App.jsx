@@ -32,18 +32,21 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
  */
 const translations = {
   en: {
-    appTitle: "Portal Malaga Platform",
+    appTitle: "Building Manager",
     appSubtitle: "Lightweight app for building management",
     loggedInAs: "Logged in as:",
     announcements: "Announcements",
     pqrs: "PQRs",
     documents: "Documents",
+    privateDocs: "My Private Files",
     addAnnouncement: "+ Add New",
     createPQR: "+ Create New",
     uploadDocument: "+ Upload New",
+    uploadPrivateDoc: "+ Upload Private File",
     noAnnouncements: "No announcements yet.",
     noPqrs: "No PQRs submitted yet.",
     noDocuments: "No documents uploaded yet.",
+    noPrivateDocs: "You have no private files.",
     posted: "Posted:",
     submitted: "Submitted:",
     uploaded: "Uploaded:",
@@ -58,6 +61,7 @@ const translations = {
       editPQR: "Edit PQR",
       uploadDocument: "Upload New Document",
       editDocument: "Edit Document",
+      uploadPrivate: "Upload Private File",
       title: "Title",
       body: "Body",
       name: "Name",
@@ -83,6 +87,9 @@ const translations = {
       cancel: "Cancel",
       image: "Image (optional)",
       file: "File (optional)",
+      selectResident: "Select Resident",
+      folderPath: "Folder/File Directory (optional)",
+      folderPathPlaceholder: "e.g., financials/2024_reports"
     },
     loading: "Loading...",
     login: {
@@ -121,18 +128,21 @@ const translations = {
     },
   },
   es: {
-    appTitle: "Plataforma Portal Malaga",
+    appTitle: "Administrador de Edificio",
     appSubtitle: "Aplicación ligera para la gestión de edificios",
     loggedInAs: "Conectado como:",
     announcements: "Anuncios",
     pqrs: "PQRs",
     documents: "Documentos",
+    privateDocs: "Mis Archivos Privados",
     addAnnouncement: "+ Añadir Nuevo",
     createPQR: "+ Crear Nuevo",
     uploadDocument: "+ Subir Nuevo",
+    uploadPrivateDoc: "+ Subir Archivo Privado",
     noAnnouncements: "Aún no hay anuncios.",
     noPqrs: "Aún no se han enviado PQRs.",
     noDocuments: "Aún no se han subido documentos.",
+    noPrivateDocs: "No tiene archivos privados.",
     posted: "Publicado:",
     submitted: "Enviado:",
     uploaded: "Subido:",
@@ -147,6 +157,7 @@ const translations = {
       editPQR: "Editar PQR",
       uploadDocument: "Subir Nuevo Documento",
       editDocument: "Editar Documento",
+      uploadPrivate: "Subir Archivo Privado",
       title: "Título",
       body: "Cuerpo",
       name: "Nombre",
@@ -172,6 +183,9 @@ const translations = {
       cancel: "Cancelar",
       image: "Imagen (opcional)",
       file: "Archivo (opcional)",
+      selectResident: "Seleccionar Residente",
+      folderPath: "Directorio de Carpeta/Archivo (opcional)",
+      folderPathPlaceholder: "ej., finanzas/informes_2024"
     },
     loading: "Cargando...",
     login: {
@@ -194,6 +208,7 @@ const translations = {
       managerLogin: "Iniciar sesión como administrador",
       roleManager: "Administrador",
       roleResident: "Residente",
+      roleAnonymous: "Usuario anónimo"
     },
     configMissing: {
       title: "Falta la configuración de Firebase",
@@ -293,6 +308,12 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userEmail, setUserEmail] = useState(null);
   const [userApartment, setUserApartment] = useState(null);
+  // NEW STATES FOR PRIVATE DOCS
+  const [residents, setResidents] = useState([]);
+  const [privateDocuments, setPrivateDocuments] = useState([]);
+  const [privateFiles, setPrivateFiles] = useState([]);
+  const privateFolderNameRef = useRef(null);
+  const [selectedResidentUid, setSelectedResidentUid] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
@@ -304,7 +325,7 @@ export default function App() {
   const [documents, setDocuments] = useState([]);
   const [showModal, setShowModal] = useState(null);
 
-  const [imageFiles, setImageFiles] = useState([]); // CHANGED: Now an array
+  const [imageFiles, setImageFiles] = useState([]); 
   const [uploading, setUploading] = useState(false);
   const [pqrFile, setPqrFile] = useState(null);
 
@@ -426,10 +447,14 @@ export default function App() {
     const announcementsPath = `artifacts/${appId}/public/data/announcements`;
     const pqrsPath = `artifacts/${appId}/public/data/pqrs`;
     const documentsPath = `artifacts/${appId}/public/data/documents`;
+    const usersPath = `artifacts/${appId}/public/data/users`;
 
     let unsubAnnouncements = () => {};
     let unsubPqrs = () => {};
     let unsubDocs = () => {};
+    let unsubPrivateDocs = () => {};
+    let unsubResidents = () => {};
+
     try {
       unsubAnnouncements = onSnapshot(
         query(collection(db, announcementsPath), orderBy("createdAt", "desc")),
@@ -460,6 +485,36 @@ export default function App() {
         (snap) => setDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
         (err) => console.error("Documents listener error:", err)
       );
+
+      // NEW: Listen to private documents for the logged-in resident
+      if (userRole === "resident" && auth?.currentUser?.uid) {
+        const privateDocsPath = `${usersPath}/${auth.currentUser.uid}/privateDocuments`;
+        unsubPrivateDocs = onSnapshot(
+          query(collection(db, privateDocsPath), orderBy("createdAt", "desc")),
+          (snap) => setPrivateDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+          (err) => console.error("Private Documents listener error:", err)
+        );
+      } else {
+        setPrivateDocuments([]);
+      }
+
+      // NEW: Listen to all residents for the manager's UI dropdown
+      if (isManager) {
+        unsubResidents = onSnapshot(
+          query(collection(db, usersPath), where("isManager", "==", false)),
+          (snap) => {
+            const residentsList = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            setResidents(residentsList);
+            if (residentsList.length > 0) {
+              setSelectedResidentUid(residentsList[0].id);
+            }
+          },
+          (err) => console.error("Residents list listener error:", err)
+        );
+      } else {
+        setResidents([]);
+      }
+
     } catch (err) {
       console.error("Error setting up Firestore listeners:", err);
     }
@@ -468,8 +523,10 @@ export default function App() {
       unsubAnnouncements();
       unsubPqrs();
       unsubDocs();
+      unsubPrivateDocs();
+      unsubResidents();
     };
-  }, [db, isAuthReady, appId, isLoggedIn, isManager, auth]);
+  }, [db, isAuthReady, appId, isLoggedIn, isManager, auth, userRole]);
 
   /**
    * Actions
@@ -510,10 +567,9 @@ export default function App() {
     if (!title || !body) return;
 
     setUploading(true);
-    let imageUrls = []; // CHANGED: Array to store multiple URLs
+    let imageUrls = [];
 
     try {
-      // Loop through each selected image file
       for (const file of imageFiles) {
         const storagePath = `announcements/${auth.currentUser.uid}-${Date.now()}-${file.name}`;
         const imageRef = ref(storage, storagePath);
@@ -526,17 +582,54 @@ export default function App() {
       await addDoc(collection(db, path), {
         title,
         body,
-        imageUrls: imageUrls, // CHANGED: Store the array of URLs
+        imageUrls: imageUrls,
         createdAt: serverTimestamp(),
         authorId: auth.currentUser.uid,
       });
       setShowModal(null);
       if (announcementTitleRef.current) announcementTitleRef.current.value = "";
       if (announcementBodyRef.current) announcementBodyRef.current.value = "";
-      setImageFiles([]); // CHANGED: Reset the imageFiles array
+      setImageFiles([]);
     } catch (err) {
       console.error("Error adding announcement:", err);
       setErrorMsg("Couldn't add announcement.");
+    } finally {
+      setUploading(false);
+    }
+  };
+  
+  // NEW: Handle private file upload
+  const handleUploadPrivateFiles = async (e) => {
+    e.preventDefault();
+    if (!db || !storage || !selectedResidentUid || privateFiles.length === 0) {
+      setErrorMsg("Please select a resident and at least one file.");
+      return;
+    }
+
+    setUploading(true);
+    const folderPath = privateFolderNameRef.current?.value?.trim() || "general";
+    const privateDocsCollection = collection(db, `artifacts/${appId}/public/data/users/${selectedResidentUid}/privateDocuments`);
+    
+    try {
+      for (const file of privateFiles) {
+        const fileRef = ref(storage, `private_files/${selectedResidentUid}/${folderPath}/${file.name}`);
+        await uploadBytes(fileRef, file);
+        const fileUrl = await getDownloadURL(fileRef);
+
+        await addDoc(privateDocsCollection, {
+          fileName: file.name,
+          folder: folderPath,
+          url: fileUrl,
+          uploadedBy: auth.currentUser.uid,
+          createdAt: serverTimestamp(),
+        });
+      }
+      setShowModal(null);
+      setPrivateFiles([]);
+      privateFolderNameRef.current.value = "";
+    } catch (err) {
+      console.error("Error uploading private file:", err);
+      setErrorMsg("Failed to upload private file.");
     } finally {
       setUploading(false);
     }
@@ -642,7 +735,6 @@ export default function App() {
     const url = documentUrlRef.current?.value?.trim();
     if (!name || !url) return;
 
-    // Basic URL validation
     try {
       new URL(url);
     } catch {
@@ -1018,6 +1110,26 @@ export default function App() {
               >
                 {t.documents}
               </button>
+              {/* NEW: Private Documents Tab */}
+              {isManager ? (
+                <button
+                  onClick={() => setView("private_docs_manager")}
+                  className={`flex-1 py-2 px-3 sm:px-4 rounded-full font-semibold transition-colors duration-200 ${
+                    view === "private_docs_manager" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:bg-gray-200"
+                  }`}
+                >
+                  {t.privateDocs}
+                </button>
+              ) : (
+                <button
+                  onClick={() => setView("private_docs_resident")}
+                  className={`flex-1 py-2 px-3 sm:px-4 rounded-full font-semibold transition-colors duration-200 ${
+                    view === "private_docs_resident" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:bg-gray-200"
+                  }`}
+                >
+                  {t.privateDocs}
+                </button>
+              )}
             </>
           )}
         </nav>
@@ -1077,7 +1189,6 @@ export default function App() {
                           </button>
                         </div>
                       )}
-                      {/* NEW: Loop through imageUrls array to display multiple images */}
                       {a.imageUrls && a.imageUrls.length > 0 && (
                         <div className="grid grid-cols-2 gap-1 p-2">
                           {a.imageUrls.map((url, index) => (
@@ -1293,6 +1404,61 @@ export default function App() {
               </ul>
             </div>
           )}
+          
+          {/* NEW: Private Documents Section for Manager */}
+          {view === "private_docs_manager" && isManager && (
+            <div className="bg-white p-6 rounded-2xl shadow-md">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold">{t.privateDocs}</h2>
+                <button
+                  onClick={() => setShowModal("upload_private_doc")}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors"
+                >
+                  {t.uploadPrivateDoc}
+                </button>
+              </div>
+              <p className="text-gray-500 italic">This is the manager's view of private file uploads.</p>
+            </div>
+          )}
+
+          {/* NEW: Private Documents Section for Resident */}
+          {view === "private_docs_resident" && userRole === "resident" && (
+            <div className="bg-white p-6 rounded-2xl shadow-md">
+              <h2 className="text-2xl font-bold mb-4">{t.privateDocs}</h2>
+              <ul className="space-y-4">
+                {privateDocuments.length === 0 ? (
+                  <li className="text-gray-500 italic text-center py-4">{t.noPrivateDocs}</li>
+                ) : (
+                  privateDocuments.map((doc) => (
+                    <li
+                      key={doc.id}
+                      className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center relative"
+                    >
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold">{doc.fileName}</h3>
+                        <p className="text-sm text-gray-500">
+                          {t.modal.folderPath}: {doc.folder}
+                        </p>
+                        {doc.createdAt && (
+                          <p className="text-sm text-gray-400 mt-1">
+                            {t.uploaded} {formatTimestamp(doc.createdAt)}
+                          </p>
+                        )}
+                      </div>
+                      <a
+                        href={doc.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 sm:mt-0 bg-blue-100 text-blue-800 px-4 py-2 rounded-full font-semibold hover:bg-blue-200 transition-colors inline-block"
+                      >
+                        {t.viewDocument}
+                      </a>
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+          )}
         </main>
 
         {/* Global errors */}
@@ -1333,8 +1499,8 @@ export default function App() {
                   <label className="block text-sm font-medium mb-1">{t.modal.image}</label>
                   <input
                     type="file"
-                    multiple // ADDED: Allow multiple file selection
-                    onChange={(e) => setImageFiles(Array.from(e.target.files))} // CHANGED: Store all files
+                    multiple 
+                    onChange={(e) => setImageFiles(Array.from(e.target.files))} 
                     className="w-full text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                   />
                 </div>
@@ -1477,6 +1643,71 @@ export default function App() {
                   className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors"
                 >
                   {editingItem ? t.modal.update : t.modal.upload}
+                </button>
+              </div>
+            </form>
+          </Modal>
+        )}
+
+        {/* NEW: Upload Private File Modal for Managers */}
+        {isManager && showModal === "upload_private_doc" && (
+          <Modal
+            title={t.modal.uploadPrivate}
+            onClose={() => { setShowModal(null); setPrivateFiles([]); }}
+          >
+            <form onSubmit={handleUploadPrivateFiles} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">{t.modal.selectResident}</label>
+                <select
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  value={selectedResidentUid}
+                  onChange={(e) => setSelectedResidentUid(e.target.value)}
+                  required
+                >
+                  {residents.length > 0 ? (
+                    residents.map((resident) => (
+                      <option key={resident.id} value={resident.id}>
+                        {resident.name} ({resident.apartment}) - {resident.email}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>No residents available</option>
+                  )}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">{t.modal.folderPath}</label>
+                <input
+                  type="text"
+                  ref={privateFolderNameRef}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder={t.modal.folderPathPlaceholder}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">File</label>
+                <input
+                  type="file"
+                  multiple
+                  onChange={(e) => setPrivateFiles(Array.from(e.target.files))}
+                  className="w-full text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setShowModal(null); setPrivateFiles([]); }}
+                  className="bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
+                >
+                  {t.modal.cancel}
+                </button>
+                <button
+                  type="submit"
+                  className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={uploading}
+                >
+                  {uploading ? t.loading : t.modal.upload}
                 </button>
               </div>
             </form>
