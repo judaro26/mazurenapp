@@ -49,7 +49,7 @@ const translations = {
     noPrivateDocs: "You have no private files.",
     posted: "Posted:",
     submitted: "Submitted:",
-    uploaded: "Subido:",
+    uploaded: "Uploaded:",
     viewDocument: "View Document",
     openStatus: "Open",
     inProgressStatus: "In Progress",
@@ -582,10 +582,10 @@ export default function App() {
   const handleUploadPrivateFiles = async (e) => {
     e.preventDefault();
     
-    // CHANGED: Use the state variable for validation
-    const files = selectedPrivateFiles;
+    // CORRECTED: Get files directly from the ref
+    const files = privateFilesRef.current?.files;
 
-    if (!db || !storage || !selectedResidentUid || files.length === 0) {
+    if (!db || !storage || !selectedResidentUid || !files || files.length === 0) {
       setErrorMsg("Please select a resident and at least one file.");
       return;
     }
@@ -595,7 +595,7 @@ export default function App() {
     const privateDocsCollection = collection(db, `artifacts/${appId}/public/data/users/${selectedResidentUid}/privateDocuments`);
     
     try {
-      for (const file of files) { // CHANGED: Use the state variable here too
+      for (const file of files) {
         const fileRef = ref(storage, `private_files/${selectedResidentUid}/${folderPath}/${file.name}`);
         await uploadBytes(fileRef, file);
         const fileUrl = await getDownloadURL(fileRef);
@@ -609,7 +609,8 @@ export default function App() {
         });
       }
       setShowModal(null);
-      setSelectedPrivateFiles([]); // CHANGED: Reset state on close
+      // CORRECTED: Reset the file input using the ref
+      if (privateFilesRef.current) privateFilesRef.current.value = "";
       if (privateFolderNameRef.current) privateFolderNameRef.current.value = "";
     } catch (err) {
       console.error("Error uploading private file:", err);
@@ -1635,7 +1636,7 @@ export default function App() {
         {isManager && showModal === "upload_private_doc" && (
           <Modal
             title={t.modal.uploadPrivate}
-            onClose={() => { setShowModal(null); setSelectedPrivateFiles([]); }} // CHANGED: Reset state on close
+            onClose={() => { setShowModal(null); }}
           >
             <form onSubmit={handleUploadPrivateFiles} className="space-y-4">
               <div>
@@ -1671,10 +1672,18 @@ export default function App() {
                 <input
                   type="file"
                   multiple
-                  ref={privateFilesRef} // FIXED: Added the ref back to the input
+                  ref={privateFilesRef}
                   className="w-full text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                   required
-                  onChange={(e) => setSelectedPrivateFiles(Array.from(e.target.files))}
+                  // This onChange handler is what updates the state that controls the button's disabled state
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files);
+                    if (files.length > 0) {
+                      setSelectedPrivateFiles(files);
+                    } else {
+                      setSelectedPrivateFiles([]);
+                    }
+                  }}
                 />
               </div>
               <div className="flex justify-end gap-2">
@@ -1688,7 +1697,7 @@ export default function App() {
                 <button
                   type="submit"
                   className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={uploading || !selectedPrivateFiles.length}
+                  disabled={uploading || selectedPrivateFiles.length === 0}
                 >
                   {uploading ? t.loading : t.modal.upload}
                 </button>
