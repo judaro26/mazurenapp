@@ -23,7 +23,7 @@ import {
   deleteDoc,
   where,
 } from "firebase/firestore";
-// REMOVED: import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 /**
  * ----------------------------------------------
@@ -615,13 +615,12 @@ export default function App() {
       }
 
       const result = await response.json();
-      const fileUrl = `https://storage.googleapis.com/${firebaseConfig.storageBucket}/private_files/${selectedResidentUid}/${folderPath}/${file.name}`;
       
       // After successful upload to GCS, save the file metadata to Firestore
       await addDoc(privateDocsCollection, {
         fileName: file.name,
         folder: folderPath,
-        url: fileUrl,
+        url: result.fileUrl,
         uploadedBy: userIdentifier,
         createdAt: serverTimestamp(),
       });
