@@ -6,7 +6,6 @@ exports.handler = async (event, context) => {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
-  // Ensure GOOGLE_CLOUD_CREDENTIALS is set in Netlify's environment variables
   if (!process.env.GOOGLE_CLOUD_CREDENTIALS) {
     return { statusCode: 500, body: 'Missing Google Cloud credentials.' };
   }
@@ -28,8 +27,10 @@ exports.handler = async (event, context) => {
       fields[fieldname] = val;
     });
 
-    busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
+    busboy.on('file', (fieldname, file, filenameInfo, encoding, mimetype) => {
       const promise = new Promise((resolveFile, rejectFile) => {
+        // CORRECTED: Extract the filename from the info object
+        const filename = filenameInfo.filename;
         const folderPath = fields.folderPath || 'general';
         const residentUid = fields.residentUid || 'unknown';
         const filePath = `private_files/${residentUid}/${folderPath}/${filename}`;
