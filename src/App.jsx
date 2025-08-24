@@ -313,7 +313,6 @@ export default function App() {
   const privateFilesRef = useRef(null);
   const privateFolderNameRef = useRef(null);
   const [selectedResidentUid, setSelectedResidentUid] = useState("");
-  // CORRECTED: Use a state variable for file selection in the modal
   const [selectedPrivateFiles, setSelectedPrivateFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
@@ -358,11 +357,11 @@ export default function App() {
         const appInstance = getApps().length ? getApp() : initializeApp(firebaseConfig);
         const authInstance = getAuth(appInstance);
         const dbInstance = getFirestore(appInstance);
-        // REMOVED: const storageInstance = getStorage(appInstance);
+        const storageInstance = getStorage(appInstance);
         setApp(appInstance);
         setAuth(authInstance);
         setDb(dbInstance);
-        // REMOVED: setStorage(storageInstance);
+        setStorage(storageInstance);
 
         const unsub = onAuthStateChanged(authInstance, async (user) => {
           try {
@@ -542,29 +541,28 @@ export default function App() {
 
   const handleAddAnnouncement = async (e) => {
     e.preventDefault();
-    // Use Firestore only to add a document with image URLs.
-    if (!db || !auth?.currentUser?.uid) return;
+    if (!db || !storage || !auth?.currentUser?.uid) return;
     const title = announcementTitleRef.current?.value?.trim();
     const body = announcementBodyRef.current?.value?.trim();
     if (!title || !body) return;
 
-    // This part of the function still relies on Firebase Storage.
-    // If you need this to work, you'll need to enable Firebase Storage
-    // for your portalmalaga-bad62 project, or also use a Netlify function.
-    // Assuming this feature is not currently used or needs the same fix.
     setUploading(true);
     let imageUrls = [];
 
-    // The logic to upload images would go here, using a similar
-    // approach to the handleUploadPrivateFiles function if you
-    // wanted to use a Netlify function for image uploads as well.
-
     try {
+      for (const file of imageFiles) {
+        const storagePath = `announcements/${auth.currentUser.uid}-${Date.now()}-${file.name}`;
+        const imageRef = ref(storage, storagePath);
+        await uploadBytes(imageRef, file);
+        const url = await getDownloadURL(imageRef);
+        imageUrls.push(url);
+      }
+
       const path = `artifacts/${appId}/public/data/announcements`;
       await addDoc(collection(db, path), {
         title,
         body,
-        imageUrls: imageUrls, // This will be empty if not uploaded
+        imageUrls: imageUrls,
         createdAt: serverTimestamp(),
         authorId: auth.currentUser.uid,
       });
@@ -603,7 +601,6 @@ export default function App() {
       formData.append('folderPath', folderPath);
       formData.append('residentUid', selectedResidentUid);
       
-      // Make an API call to your Netlify Function to handle the upload
       const response = await fetch('/.netlify/functions/uploadToGcs', {
         method: 'POST',
         body: formData,
@@ -616,7 +613,6 @@ export default function App() {
 
       const result = await response.json();
       
-      // After successful upload to GCS, save the file metadata to Firestore
       await addDoc(privateDocsCollection, {
         fileName: file.name,
         folder: folderPath,
@@ -684,9 +680,6 @@ export default function App() {
 
   const handleAddPQR = async (e) => {
     e.preventDefault();
-    // This part of the function still relies on Firebase Storage.
-    // If you need this to work, you'll need to enable Firebase Storage
-    // for your portalmalaga-bad62 project, or also use a Netlify function.
     if (!db || !storage || !auth?.currentUser?.uid) return;
 
     const name = pqrNameRef.current?.value?.trim();
@@ -1306,11 +1299,6 @@ export default function App() {
                       <p className="text-sm text-gray-500 mt-1">
                         Submitted by: {p.name} ({p.apartment})
                       </p>
-                      {p.createdAt && (
-                        <p className="text-sm text-gray-400 mt-2">
-                          {t.submitted} {formatTimestamp(p.createdAt)}
-                        </p>
-                      )}
                       {p.fileUrl && (
                         <a 
                           href={p.fileUrl} 
