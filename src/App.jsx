@@ -220,7 +220,7 @@ const translations = {
         "Agregue un <script> antes de su bundle que defina window.__firebase_config = {...}.",
       opt2Title: "Opción B: Variables de entorno en Netlify",
       opt2Desc:
-        "Configure las variables REACT_APP_FIREBASE_* en Configuración del sitio → Build & deploy → Environment. Luego vuelva a desplegar.",
+        "Configure las variables REACT_APP_FIREBASE_* en Site settings → Build & deploy → Environment. Luego vuelva a desplegar.",
       required: "Claves requeridas: apiKey, authDomain, projectId, appId",
     },
   },
@@ -249,7 +249,9 @@ function loadFirebaseConfig() {
     apiKey: import.meta.env.VITE_APP_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_APP_FIREBASE_AUTH_DOMAIN,
     projectId: import.meta.env.VITE_APP_FIREBASE_PROJECT_ID,
-    storageBucket: import.meta.env.VITE_APP_FIREBASE_STORAGE_BUCKET,
+    // CHANGED: Use the custom storage bucket name from the environment variable.
+    // If this is missing, default to the projectId name.
+    storageBucket: import.meta.env.VITE_APP_FIREBASE_STORAGE_BUCKET || 'portalmalaga25.appspot.com',
     messagingSenderId: import.meta.env.VITE_APP_FIREBASE_MESSAGING_SENDER_ID,
     appId: import.meta.env.VITE_APP_FIREBASE_APP_ID,
   };
@@ -311,7 +313,6 @@ export default function App() {
   // NEW STATES FOR PRIVATE DOCS
   const [residents, setResidents] = useState([]);
   const [privateDocuments, setPrivateDocuments] = useState([]);
-  // REPLACED: privateFiles state with a ref
   const privateFilesRef = useRef(null);
   const privateFolderNameRef = useRef(null);
   const [selectedResidentUid, setSelectedResidentUid] = useState("");
@@ -599,11 +600,9 @@ export default function App() {
     }
   };
   
-  // NEW: Handle private file upload
   const handleUploadPrivateFiles = async (e) => {
     e.preventDefault();
     
-    // CHANGED: Access files directly from the ref
     const files = privateFilesRef.current.files;
 
     if (!db || !storage || !selectedResidentUid || files.length === 0) {
@@ -630,7 +629,6 @@ export default function App() {
         });
       }
       setShowModal(null);
-      // Reset input by clearing the ref's value
       privateFilesRef.current.value = "";
       if (privateFolderNameRef.current) privateFolderNameRef.current.value = "";
     } catch (err) {
