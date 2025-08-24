@@ -23,13 +23,14 @@ exports.handler = async (event, context) => {
     const busboy = Busboy({ headers: event.headers });
     const fields = {};
     const filePromises = [];
+    let fileUrl = '';
 
     busboy.on('field', (fieldname, val) => {
       fields[fieldname] = val;
     });
 
     busboy.on('file', (fieldname, file, filenameInfo) => {
-      const { filename, encoding, mimetype } = filenameInfo;
+      const { filename } = filenameInfo;
       const promise = new Promise((resolveFile, rejectFile) => {
         const folderPath = fields.folderPath || 'general';
         const residentUid = fields.residentUid || 'unknown';
@@ -38,15 +39,16 @@ exports.handler = async (event, context) => {
 
         const writeStream = gcsFile.createWriteStream({
           metadata: {
-            contentType: mimetype,
+            contentType: filenameInfo.mimeType,
           },
         });
 
         file.pipe(writeStream);
 
         writeStream.on('finish', () => {
-          const fileUrl = `https://storage.googleapis.com/${bucketName}/${encodeURIComponent(filePath)}`;
-          resolveFile(fileUrl);
+          const publicUrl = `https://storage.googleapis.com/${bucketName}/${encodeURIComponent(filePath)}`;
+          fileUrl = publicUrl;
+          resolveFile();
         });
 
         writeStream.on('error', (err) => {
@@ -58,10 +60,10 @@ exports.handler = async (event, context) => {
 
     busboy.on('finish', async () => {
       try {
-        const fileUrls = await Promise.all(filePromises);
+        await Promise.all(filePromises);
         resolve({
           statusCode: 200,
-          body: JSON.stringify({ fileUrl: fileUrls[0] || '' }),
+          body: JSON.stringify({ fileUrl }),
         });
       } catch (error) {
         resolve({
