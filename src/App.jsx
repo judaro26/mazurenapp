@@ -580,44 +580,44 @@ export default function App() {
   };
   
   const handleUploadPrivateFiles = async (e) => {
-      e.preventDefault();
-      
-      // Use the state variable directly for consistency
-      if (!db || !storage || !selectedResidentUid || selectedPrivateFiles.length === 0) {
-        setErrorMsg("Please select a resident and at least one file.");
-        return;
+    e.preventDefault();
+    
+    // Use the state variable directly for consistency
+    if (!db || !storage || !selectedResidentUid || selectedPrivateFiles.length === 0) {
+      setErrorMsg("Please select a resident and at least one file.");
+      return;
+    }
+
+    setUploading(true);
+    const folderPath = privateFolderNameRef.current?.value?.trim() || "general";
+    const privateDocsCollection = collection(db, `artifacts/${appId}/public/data/users/${selectedResidentUid}/privateDocuments`);
+    
+    try {
+      for (const file of selectedPrivateFiles) {
+        const fileRef = ref(storage, `private_files/${selectedResidentUid}/${folderPath}/${file.name}`);
+        await uploadBytes(fileRef, file);
+        const fileUrl = await getDownloadURL(fileRef);
+
+        await addDoc(privateDocsCollection, {
+          fileName: file.name,
+          folder: folderPath,
+          url: fileUrl,
+          uploadedBy: auth.currentUser.uid,
+          createdAt: serverTimestamp(),
+        });
       }
-  
-      setUploading(true);
-      const folderPath = privateFolderNameRef.current?.value?.trim() || "general";
-      const privateDocsCollection = collection(db, `artifacts/${appId}/public/data/users/${selectedResidentUid}/privateDocuments`);
-      
-      try {
-        for (const file of selectedPrivateFiles) {
-          const fileRef = ref(storage, `private_files/${selectedResidentUid}/${folderPath}/${file.name}`);
-          await uploadBytes(fileRef, file);
-          const fileUrl = await getDownloadURL(fileRef);
-  
-          await addDoc(privateDocsCollection, {
-            fileName: file.name,
-            folder: folderPath,
-            url: fileUrl,
-            uploadedBy: auth.currentUser.uid,
-            createdAt: serverTimestamp(),
-          });
-        }
-        setShowModal(null);
-        // Reset the file input and state
-        if (privateFilesRef.current) privateFilesRef.current.value = "";
-        if (privateFolderNameRef.current) privateFolderNameRef.current.value = "";
-        setSelectedPrivateFiles([]);
-      } catch (err) {
-        console.error("Error uploading private file:", err);
-        setErrorMsg("Failed to upload private file.");
-      } finally {
-        setUploading(false);
-      }
-    };
+      setShowModal(null);
+      // Reset the file input and state
+      if (privateFilesRef.current) privateFilesRef.current.value = "";
+      if (privateFolderNameRef.current) privateFolderNameRef.current.value = "";
+      setSelectedPrivateFiles([]);
+    } catch (err) {
+      console.error("Error uploading private file:", err);
+      setErrorMsg("Failed to upload private file.");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleUpdate = async (e) => {
     e.preventDefault();
