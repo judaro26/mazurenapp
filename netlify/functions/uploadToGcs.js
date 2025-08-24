@@ -6,7 +6,6 @@ exports.handler = async (event, context) => {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
-  // Ensure GOOGLE_CLOUD_CREDENTIALS is set in Netlify's environment variables
   if (!process.env.GOOGLE_CLOUD_CREDENTIALS) {
     return { statusCode: 500, body: 'Missing Google Cloud credentials.' };
   }
@@ -23,10 +22,7 @@ exports.handler = async (event, context) => {
     const busboy = Busboy({ headers: event.headers });
     const fields = {};
     const filePromises = [];
-
-    busboy.on('field', (fieldname, val) => {
-      fields[fieldname] = val;
-    });
+    let fileUrl = '';
 
     busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
       const promise = new Promise((resolveFile, rejectFile) => {
@@ -43,8 +39,9 @@ exports.handler = async (event, context) => {
         file.pipe(writeStream);
 
         writeStream.on('finish', () => {
-          const fileUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
-          resolveFile(fileUrl);
+          const publicUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
+          fileUrl = publicUrl;
+          resolveFile();
         });
 
         writeStream.on('error', (err) => {
@@ -54,12 +51,16 @@ exports.handler = async (event, context) => {
       filePromises.push(promise);
     });
 
+    busboy.on('field', (fieldname, val) => {
+      fields[fieldname] = val;
+    });
+
     busboy.on('finish', async () => {
       try {
-        const fileUrls = await Promise.all(filePromises);
+        await Promise.all(filePromises);
         resolve({
           statusCode: 200,
-          body: JSON.stringify({ fileUrl: fileUrls[0] || '' }),
+          body: JSON.stringify({ fileUrl }),
         });
       } catch (error) {
         resolve({
