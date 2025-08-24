@@ -12,11 +12,13 @@ exports.handler = async (event, context) => {
   }
 
   const storage = new Storage({
-    projectId: 'portalmalaga2025',
+    // CORRECTED: Use the correct Google Cloud Project ID
+    projectId: 'portalmalaga-470004',
     credentials: JSON.parse(process.env.GOOGLE_CLOUD_CREDENTIALS),
   });
   
-  const bucketName = 'portalmalaga2025.appspot.com';
+  // The bucket name remains the same as previously confirmed
+  const bucketName = 'portalmalaga2025';
   const bucket = storage.bucket(bucketName);
 
   return new Promise((resolve, reject) => {
@@ -64,7 +66,7 @@ exports.handler = async (event, context) => {
           body: JSON.stringify({ fileUrl: fileUrls[0] || '' }),
         });
       } catch (error) {
-        // CORRECTED: Safely handle the error object by returning a specific message.
+        // Safely handle the error object by returning a specific message.
         resolve({
           statusCode: 500,
           body: JSON.stringify({ error: `Server-side error: ${error.message}` }),
