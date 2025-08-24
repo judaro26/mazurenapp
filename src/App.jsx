@@ -308,7 +308,6 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userEmail, setUserEmail] = useState(null);
   const [userApartment, setUserApartment] = useState(null);
-  // NEW STATES FOR PRIVATE DOCS
   const [residents, setResidents] = useState([]);
   const [privateDocuments, setPrivateDocuments] = useState([]);
   const privateFilesRef = useRef(null);
@@ -318,20 +317,16 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // UI State
   const [view, setView] = useState("announcements");
   const [announcements, setAnnouncements] = useState([]);
   const [pqrs, setPqrs] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [showModal, setShowModal] = useState(null);
-
-  const [imageFiles, setImageFiles] = useState([]); 
+  const [imageFiles, setImageFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [pqrFile, setPqrFile] = useState(null);
-
   const [editingItem, setEditingItem] = useState(null);
   const [editingCollection, setEditingCollection] = useState(null);
-  
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const [registerName, setRegisterName] = useState("");
   const [registerApartment, setRegisterApartment] = useState("");
@@ -339,13 +334,9 @@ export default function App() {
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerError, setRegisterError] = useState("");
-
-  // Login form
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
-
-  // Refs
   const announcementTitleRef = useRef(null);
   const announcementBodyRef = useRef(null);
   const pqrNameRef = useRef(null);
@@ -355,9 +346,6 @@ export default function App() {
   const documentNameRef = useRef(null);
   const documentUrlRef = useRef(null);
 
-  /**
-   * Init Firebase (once)
-   */
   useEffect(() => {
     (async () => {
       try {
@@ -438,9 +426,6 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /**
-   * Live queries
-   */
   useEffect(() => {
     if (!db || !isAuthReady) return;
 
@@ -503,6 +488,7 @@ export default function App() {
           (snap) => {
             const residentsList = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
             setResidents(residentsList);
+            // FIXED: Only set selectedResidentUid if the list is not empty
             if (residentsList.length > 0) {
               setSelectedResidentUid(residentsList[0].id);
             }
@@ -526,9 +512,6 @@ export default function App() {
     };
   }, [db, isAuthReady, appId, isLoggedIn, isManager, auth, userRole]);
 
-  /**
-   * Actions
-   */
   const handleRegister = async (e) => {
     e.preventDefault();
     setRegisterError("");
@@ -600,7 +583,9 @@ export default function App() {
     e.preventDefault();
     
     // CHANGED: Use the state variable for validation
-    if (!db || !storage || !selectedResidentUid || selectedPrivateFiles.length === 0) {
+    const files = selectedPrivateFiles;
+
+    if (!db || !storage || !selectedResidentUid || files.length === 0) {
       setErrorMsg("Please select a resident and at least one file.");
       return;
     }
@@ -610,7 +595,7 @@ export default function App() {
     const privateDocsCollection = collection(db, `artifacts/${appId}/public/data/users/${selectedResidentUid}/privateDocuments`);
     
     try {
-      for (const file of selectedPrivateFiles) { // CHANGED: Use the state variable here too
+      for (const file of files) {
         const fileRef = ref(storage, `private_files/${selectedResidentUid}/${folderPath}/${file.name}`);
         await uploadBytes(fileRef, file);
         const fileUrl = await getDownloadURL(fileRef);
@@ -624,8 +609,7 @@ export default function App() {
         });
       }
       setShowModal(null);
-      // CHANGED: Reset state and ref on close
-      setSelectedPrivateFiles([]);
+      setSelectedPrivateFiles([]); // CHANGED: Reset state on close
       if (privateFolderNameRef.current) privateFolderNameRef.current.value = "";
     } catch (err) {
       console.error("Error uploading private file:", err);
@@ -1651,7 +1635,7 @@ export default function App() {
         {isManager && showModal === "upload_private_doc" && (
           <Modal
             title={t.modal.uploadPrivate}
-            onClose={() => { setShowModal(null); }}
+            onClose={() => { setShowModal(null); setSelectedPrivateFiles([]); }} // CHANGED: Reset state on close
           >
             <form onSubmit={handleUploadPrivateFiles} className="space-y-4">
               <div>
@@ -1687,6 +1671,7 @@ export default function App() {
                 <input
                   type="file"
                   multiple
+                  // FIXED: Added the ref to the input element
                   ref={privateFilesRef}
                   className="w-full text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                   required
