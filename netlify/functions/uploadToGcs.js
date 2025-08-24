@@ -64,9 +64,10 @@ exports.handler = async (event, context) => {
           body: JSON.stringify({ fileUrl: fileUrls[0] || '' }),
         });
       } catch (error) {
-        reject({
+        // CORRECTED: Safely handle the error object by returning a specific message.
+        resolve({
           statusCode: 500,
-          body: JSON.stringify({ error: error.message }),
+          body: JSON.stringify({ error: `Server-side error: ${error.message}` }),
         });
       }
     });
