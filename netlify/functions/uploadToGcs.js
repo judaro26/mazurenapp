@@ -12,12 +12,10 @@ exports.handler = async (event, context) => {
   }
 
   const storage = new Storage({
-    // CORRECTED: Use the correct Google Cloud Project ID
     projectId: 'portalmalaga-470004',
     credentials: JSON.parse(process.env.GOOGLE_CLOUD_CREDENTIALS),
   });
   
-  // The bucket name remains the same as previously confirmed
   const bucketName = 'portalmalaga2025';
   const bucket = storage.bucket(bucketName);
 
@@ -41,10 +39,9 @@ exports.handler = async (event, context) => {
         file.pipe(writeStream);
 
         writeStream.on('finish', () => {
-          gcsFile.makePublic().then(() => {
-            const fileUrl = gcsFile.publicUrl();
-            resolveFile(fileUrl);
-          }).catch(rejectFile);
+          // CORRECTED: Removed gcsFile.makePublic() as permissions are now set at the bucket level
+          const fileUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
+          resolveFile(fileUrl);
         });
 
         writeStream.on('error', (err) => {
