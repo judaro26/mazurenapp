@@ -311,7 +311,8 @@ export default function App() {
   // NEW STATES FOR PRIVATE DOCS
   const [residents, setResidents] = useState([]);
   const [privateDocuments, setPrivateDocuments] = useState([]);
-  const [privateFiles, setPrivateFiles] = useState([]);
+  // REPLACED: privateFiles state with a ref
+  const privateFilesRef = useRef(null);
   const privateFolderNameRef = useRef(null);
   const [selectedResidentUid, setSelectedResidentUid] = useState("");
 
@@ -601,7 +602,11 @@ export default function App() {
   // NEW: Handle private file upload
   const handleUploadPrivateFiles = async (e) => {
     e.preventDefault();
-    if (!db || !storage || !selectedResidentUid || privateFiles.length === 0) {
+    
+    // CHANGED: Access files directly from the ref
+    const files = privateFilesRef.current.files;
+
+    if (!db || !storage || !selectedResidentUid || files.length === 0) {
       setErrorMsg("Please select a resident and at least one file.");
       return;
     }
@@ -611,7 +616,7 @@ export default function App() {
     const privateDocsCollection = collection(db, `artifacts/${appId}/public/data/users/${selectedResidentUid}/privateDocuments`);
     
     try {
-      for (const file of privateFiles) {
+      for (const file of files) {
         const fileRef = ref(storage, `private_files/${selectedResidentUid}/${folderPath}/${file.name}`);
         await uploadBytes(fileRef, file);
         const fileUrl = await getDownloadURL(fileRef);
@@ -625,7 +630,8 @@ export default function App() {
         });
       }
       setShowModal(null);
-      setPrivateFiles([]);
+      // Reset input by clearing the ref's value
+      privateFilesRef.current.value = "";
       privateFolderNameRef.current.value = "";
     } catch (err) {
       console.error("Error uploading private file:", err);
@@ -1110,7 +1116,6 @@ export default function App() {
               >
                 {t.documents}
               </button>
-              {/* NEW: Private Documents Tab */}
               {isManager ? (
                 <button
                   onClick={() => setView("private_docs_manager")}
@@ -1405,7 +1410,7 @@ export default function App() {
             </div>
           )}
           
-          {/* NEW: Private Documents Section for Manager */}
+          {/* Private Documents Section for Manager */}
           {view === "private_docs_manager" && isManager && (
             <div className="bg-white p-6 rounded-2xl shadow-md">
               <div className="flex justify-between items-center mb-4">
@@ -1421,7 +1426,7 @@ export default function App() {
             </div>
           )}
 
-          {/* NEW: Private Documents Section for Resident */}
+          {/* Private Documents Section for Resident */}
           {view === "private_docs_resident" && userRole === "resident" && (
             <div className="bg-white p-6 rounded-2xl shadow-md">
               <h2 className="text-2xl font-bold mb-4">{t.privateDocs}</h2>
@@ -1649,11 +1654,11 @@ export default function App() {
           </Modal>
         )}
 
-        {/* NEW: Upload Private File Modal for Managers */}
+        {/* Upload Private File Modal for Managers */}
         {isManager && showModal === "upload_private_doc" && (
           <Modal
             title={t.modal.uploadPrivate}
-            onClose={() => { setShowModal(null); setPrivateFiles([]); }}
+            onClose={() => { setShowModal(null); }}
           >
             <form onSubmit={handleUploadPrivateFiles} className="space-y-4">
               <div>
@@ -1689,7 +1694,7 @@ export default function App() {
                 <input
                   type="file"
                   multiple
-                  onChange={(e) => setPrivateFiles(Array.from(e.target.files))}
+                  ref={privateFilesRef} // ADDED: Use ref to access files directly
                   className="w-full text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                   required
                 />
@@ -1697,7 +1702,7 @@ export default function App() {
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => { setShowModal(null); setPrivateFiles([]); }}
+                  onClick={() => { setShowModal(null); }}
                   className="bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
                 >
                   {t.modal.cancel}
