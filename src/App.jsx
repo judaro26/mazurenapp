@@ -632,7 +632,7 @@ export default function App() {
       setShowModal(null);
       // Reset input by clearing the ref's value
       privateFilesRef.current.value = "";
-      privateFolderNameRef.current.value = "";
+      if (privateFolderNameRef.current) privateFolderNameRef.current.value = "";
     } catch (err) {
       console.error("Error uploading private file:", err);
       setErrorMsg("Failed to upload private file.");
@@ -1694,7 +1694,7 @@ export default function App() {
                 <input
                   type="file"
                   multiple
-                  ref={privateFilesRef} // ADDED: Use ref to access files directly
+                  ref={privateFilesRef}
                   className="w-full text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                   required
                 />
