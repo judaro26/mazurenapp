@@ -23,7 +23,7 @@ import {
   deleteDoc,
   where,
 } from "firebase/firestore";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+// REMOVED: import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 /**
  * ----------------------------------------------
@@ -313,7 +313,10 @@ export default function App() {
   const privateFilesRef = useRef(null);
   const privateFolderNameRef = useRef(null);
   const [selectedResidentUid, setSelectedResidentUid] = useState("");
+  // CORRECTED: Use a state variable for file selection in the modal
   const [selectedPrivateFiles, setSelectedPrivateFiles] = useState([]);
+  // NEW: State for displaying selected file names in the UI
+  const [selectedFileNames, setSelectedFileNames] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -623,6 +626,7 @@ export default function App() {
 
       setShowModal(null);
       setSelectedPrivateFiles([]);
+      setSelectedFileNames([]);
     } catch (err) {
       console.error("Error uploading private file:", err);
       setErrorMsg(`Failed to upload private file: ${err.message}`);
@@ -1642,7 +1646,7 @@ export default function App() {
         {isManager && showModal === "upload_private_doc" && (
           <Modal
             title={t.modal.uploadPrivate}
-            onClose={() => { setShowModal(null); }}
+            onClose={() => { setShowModal(null); setSelectedPrivateFiles([]); setSelectedFileNames([]); }}
           >
             <form onSubmit={handleUploadPrivateFiles} className="space-y-4">
               <div>
@@ -1682,13 +1686,26 @@ export default function App() {
                   onChange={(e) => {
                     const files = Array.from(e.target.files);
                     setSelectedPrivateFiles(files);
+                    // NEW: Store filenames for display
+                    setSelectedFileNames(files.map(file => file.name));
                   }}
                 />
+                {/* NEW: Display the names of the selected files */}
+                {selectedFileNames.length > 0 && (
+                  <div className="mt-2 text-sm text-gray-600">
+                    <p>Selected files:</p>
+                    <ul>
+                      {selectedFileNames.map((name, index) => (
+                        <li key={index}>{name}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => { setShowModal(null); setSelectedPrivateFiles([]); }}
+                  onClick={() => { setShowModal(null); setSelectedPrivateFiles([]); setSelectedFileNames([]); }}
                   className="bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
                 >
                   {t.modal.cancel}
