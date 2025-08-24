@@ -24,6 +24,10 @@ exports.handler = async (event, context) => {
     const fields = {};
     const filePromises = [];
 
+    busboy.on('field', (fieldname, val) => {
+      fields[fieldname] = val;
+    });
+
     busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
       const promise = new Promise((resolveFile, rejectFile) => {
         const folderPath = fields.folderPath || 'general';
@@ -39,7 +43,6 @@ exports.handler = async (event, context) => {
         file.pipe(writeStream);
 
         writeStream.on('finish', () => {
-          // CORRECTED: Removed gcsFile.makePublic() as permissions are now set at the bucket level
           const fileUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
           resolveFile(fileUrl);
         });
@@ -51,10 +54,6 @@ exports.handler = async (event, context) => {
       filePromises.push(promise);
     });
 
-    busboy.on('field', (fieldname, val) => {
-      fields[fieldname] = val;
-    });
-
     busboy.on('finish', async () => {
       try {
         const fileUrls = await Promise.all(filePromises);
@@ -63,7 +62,6 @@ exports.handler = async (event, context) => {
           body: JSON.stringify({ fileUrl: fileUrls[0] || '' }),
         });
       } catch (error) {
-        // Safely handle the error object by returning a specific message.
         resolve({
           statusCode: 500,
           body: JSON.stringify({ error: `Server-side error: ${error.message}` }),
