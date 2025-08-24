@@ -23,8 +23,7 @@ import {
   deleteDoc,
   where,
 } from "firebase/firestore";
-
-// No longer importing Firebase Storage as it is not used in the client-side code.
+// REMOVED: import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 /**
  * ----------------------------------------------
@@ -532,6 +531,7 @@ export default function App() {
 
   const handleAddAnnouncement = async (e) => {
     e.preventDefault();
+    // Use Firestore only to add a document with image URLs.
     if (!db || !auth?.currentUser?.uid) return;
     const title = announcementTitleRef.current?.value?.trim();
     const body = announcementBodyRef.current?.value?.trim();
@@ -610,6 +610,7 @@ export default function App() {
 
       setShowModal(null);
       setSelectedPrivateFiles([]);
+      setSelectedFileNames([]);
     } catch (err) {
       console.error("Error uploading private file:", err);
       setErrorMsg(`Failed to upload private file: ${err.message}`);
@@ -667,9 +668,7 @@ export default function App() {
 
   const handleAddPQR = async (e) => {
     e.preventDefault();
-    // This feature requires Firebase Storage. Assuming it is not in use or that 
-    // Firebase Storage has been enabled.
-    if (!db || !storage || !auth?.currentUser?.uid) return;
+    if (!db || !auth?.currentUser?.uid) return;
 
     const name = pqrNameRef.current?.value?.trim();
     const apartment = pqrApartmentRef.current?.value?.trim();
@@ -681,10 +680,6 @@ export default function App() {
     let fileUrl = null;
 
     try {
-      // Logic for uploading PQR file
-      // If you are using a Netlify function for this, it would be a separate implementation.
-      // Assuming this is handled by Firebase Storage as per the original code.
-      
       const path = `artifacts/${appId}/public/data/pqrs`;
       await addDoc(collection(db, path), {
         name,
@@ -1668,11 +1663,9 @@ export default function App() {
                   onChange={(e) => {
                     const files = Array.from(e.target.files);
                     setSelectedPrivateFiles(files);
-                    // NEW: Store filenames for display
                     setSelectedFileNames(files.map(file => file.name));
                   }}
                 />
-                {/* NEW: Display the names of the selected files */}
                 {selectedFileNames.length > 0 && (
                   <div className="mt-2 text-sm text-gray-600">
                     <p>Selected files:</p>
