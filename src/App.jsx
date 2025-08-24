@@ -311,7 +311,7 @@ export default function App() {
   // NEW STATES FOR PRIVATE DOCS
   const [residents, setResidents] = useState([]);
   const [privateDocuments, setPrivateDocuments] = useState([]);
-  const [selectedPrivateFiles, setSelectedPrivateFiles] = useState([]); // CHANGED: Added state to manage selected files
+  const privateFilesRef = useRef(null);
   const privateFolderNameRef = useRef(null);
   const [selectedResidentUid, setSelectedResidentUid] = useState("");
 
@@ -504,7 +504,7 @@ export default function App() {
             const residentsList = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
             setResidents(residentsList);
             if (residentsList.length > 0) {
-              setSelectedResidentUid(residents[0].id);
+              setSelectedResidentUid(residentsList[0].id);
             }
           },
           (err) => console.error("Residents list listener error:", err)
@@ -599,10 +599,8 @@ export default function App() {
   const handleUploadPrivateFiles = async (e) => {
     e.preventDefault();
     
-    // Check if the file input ref is valid and has files
-    const files = privateFilesRef.current?.files;
-
-    if (!db || !storage || !selectedResidentUid || !files || files.length === 0) {
+    // CHANGED: Use the state variable for validation
+    if (!db || !storage || !selectedResidentUid || selectedPrivateFiles.length === 0) {
       setErrorMsg("Please select a resident and at least one file.");
       return;
     }
@@ -612,7 +610,7 @@ export default function App() {
     const privateDocsCollection = collection(db, `artifacts/${appId}/public/data/users/${selectedResidentUid}/privateDocuments`);
     
     try {
-      for (const file of files) {
+      for (const file of selectedPrivateFiles) { // CHANGED: Use the state variable here too
         const fileRef = ref(storage, `private_files/${selectedResidentUid}/${folderPath}/${file.name}`);
         await uploadBytes(fileRef, file);
         const fileUrl = await getDownloadURL(fileRef);
@@ -626,7 +624,8 @@ export default function App() {
         });
       }
       setShowModal(null);
-      if (privateFilesRef.current) privateFilesRef.current.value = "";
+      // CHANGED: Reset state and ref on close
+      setSelectedPrivateFiles([]);
       if (privateFolderNameRef.current) privateFolderNameRef.current.value = "";
     } catch (err) {
       console.error("Error uploading private file:", err);
@@ -1691,14 +1690,13 @@ export default function App() {
                   ref={privateFilesRef}
                   className="w-full text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                   required
-                  // CHANGED: We now manage the files in state to ensure proper validation
                   onChange={(e) => setSelectedPrivateFiles(Array.from(e.target.files))}
                 />
               </div>
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => { setShowModal(null); setSelectedPrivateFiles([]); }} // CHANGED: Clear state on close
+                  onClick={() => { setShowModal(null); setSelectedPrivateFiles([]); }}
                   className="bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
                 >
                   {t.modal.cancel}
@@ -1706,7 +1704,7 @@ export default function App() {
                 <button
                   type="submit"
                   className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={uploading || !selectedPrivateFiles.length} // CHANGED: Disable button if no files are selected
+                  disabled={uploading || !selectedPrivateFiles.length}
                 >
                   {uploading ? t.loading : t.modal.upload}
                 </button>
