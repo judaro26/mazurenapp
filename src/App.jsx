@@ -249,7 +249,6 @@ function loadFirebaseConfig() {
     apiKey: import.meta.env.VITE_APP_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_APP_FIREBASE_AUTH_DOMAIN,
     projectId: import.meta.env.VITE_APP_FIREBASE_PROJECT_ID,
-    // CORRECTED: Hardcode the storageBucket name to the correct one
     storageBucket: 'portalmalaga25.appspot.com',
     messagingSenderId: import.meta.env.VITE_APP_FIREBASE_MESSAGING_SENDER_ID,
     appId: import.meta.env.VITE_APP_FIREBASE_APP_ID,
@@ -487,7 +486,6 @@ export default function App() {
         (err) => console.error("Documents listener error:", err)
       );
 
-      // NEW: Listen to private documents for the logged-in resident
       if (userRole === "resident" && auth?.currentUser?.uid) {
         const privateDocsPath = `${usersPath}/${auth.currentUser.uid}/privateDocuments`;
         unsubPrivateDocs = onSnapshot(
@@ -499,7 +497,6 @@ export default function App() {
         setPrivateDocuments([]);
       }
 
-      // NEW: Listen to all residents for the manager's UI dropdown
       if (isManager) {
         unsubResidents = onSnapshot(
           query(collection(db, usersPath), where("isManager", "==", false)),
@@ -602,9 +599,10 @@ export default function App() {
   const handleUploadPrivateFiles = async (e) => {
     e.preventDefault();
     
-    const files = privateFilesRef.current.files;
+    // Check if the file input ref is valid and has files
+    const files = privateFilesRef.current?.files;
 
-    if (!db || !storage || !selectedResidentUid || files.length === 0) {
+    if (!db || !storage || !selectedResidentUid || !files || files.length === 0) {
       setErrorMsg("Please select a resident and at least one file.");
       return;
     }
@@ -628,7 +626,7 @@ export default function App() {
         });
       }
       setShowModal(null);
-      privateFilesRef.current.value = "";
+      if (privateFilesRef.current) privateFilesRef.current.value = "";
       if (privateFolderNameRef.current) privateFolderNameRef.current.value = "";
     } catch (err) {
       console.error("Error uploading private file:", err);
@@ -1651,7 +1649,6 @@ export default function App() {
           </Modal>
         )}
 
-        {/* Upload Private File Modal for Managers */}
         {isManager && showModal === "upload_private_doc" && (
           <Modal
             title={t.modal.uploadPrivate}
