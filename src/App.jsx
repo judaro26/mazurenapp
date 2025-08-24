@@ -249,7 +249,7 @@ function loadFirebaseConfig() {
     apiKey: import.meta.env.VITE_APP_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_APP_FIREBASE_AUTH_DOMAIN,
     projectId: import.meta.env.VITE_APP_FIREBASE_PROJECT_ID,
-    // CORRECTED: Use the custom storage bucket name from the environment variable.
+    // CORRECTED: Hardcode the storageBucket name to the correct one
     storageBucket: 'portalmalaga25.appspot.com',
     messagingSenderId: import.meta.env.VITE_APP_FIREBASE_MESSAGING_SENDER_ID,
     appId: import.meta.env.VITE_APP_FIREBASE_APP_ID,
