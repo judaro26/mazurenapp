@@ -313,7 +313,7 @@ export default function App() {
   const privateFilesRef = useRef(null);
   const privateFolderNameRef = useRef(null);
   const [selectedResidentUid, setSelectedResidentUid] = useState("");
-  // CHANGED: Use a state variable for file selection in the modal
+  // CORRECTED: Use a state variable for file selection in the modal
   const [selectedPrivateFiles, setSelectedPrivateFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
@@ -582,7 +582,6 @@ export default function App() {
   const handleUploadPrivateFiles = async (e) => {
     e.preventDefault();
     
-    // Use the state variable directly for consistency
     if (!db || !storage || !selectedResidentUid || selectedPrivateFiles.length === 0) {
       setErrorMsg("Please select a resident and at least one file.");
       return;
@@ -607,9 +606,7 @@ export default function App() {
         });
       }
       setShowModal(null);
-      // Reset the file input and state
-      if (privateFilesRef.current) privateFilesRef.current.value = "";
-      if (privateFolderNameRef.current) privateFolderNameRef.current.value = "";
+      // Reset the file input by clearing the state
       setSelectedPrivateFiles([]);
     } catch (err) {
       console.error("Error uploading private file:", err);
@@ -1671,17 +1668,10 @@ export default function App() {
                 <input
                   type="file"
                   multiple
-                  ref={privateFilesRef}
                   className="w-full text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                  required
-                  // This onChange handler is what updates the state that controls the button's disabled state
                   onChange={(e) => {
                     const files = Array.from(e.target.files);
-                    if (files.length > 0) {
-                      setSelectedPrivateFiles(files);
-                    } else {
-                      setSelectedPrivateFiles([]);
-                    }
+                    setSelectedPrivateFiles(files);
                   }}
                 />
               </div>
