@@ -23,7 +23,8 @@ import {
   deleteDoc,
   where,
 } from "firebase/firestore";
-// Removed Firebase Storage imports as they are no longer used.
+
+// No longer importing Firebase Storage as it is not used in the client-side code.
 
 /**
  * ----------------------------------------------
@@ -240,11 +241,9 @@ function safeJsonParse(value) {
 }
 
 function loadFirebaseConfig() {
-  // 1) Prefer a global window.__firebase_config (can be a JSON string or object)
   const globalCfg = typeof window !== "undefined" ? safeJsonParse(window.__firebase_config) : null;
   if (globalCfg && typeof globalCfg === "object") return globalCfg;
 
-  // 2) Fall back to build-time env vars (Vite): import.meta.env
   const cfg = {
     apiKey: import.meta.env.VITE_APP_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_APP_FIREBASE_AUTH_DOMAIN,
@@ -259,7 +258,6 @@ function loadFirebaseConfig() {
 }
 
 function formatTimestamp(ts) {
-  // Firestore Timestamp or Date or null
   try {
     const date = ts?.toDate ? ts.toDate() : ts instanceof Date ? ts : null;
     if (!date) return "";
@@ -275,7 +273,6 @@ function formatTimestamp(ts) {
  * ----------------------------------------------
  */
 export default function App() {
-  // Language
   const [language, setLanguage] = useState(() => localStorage.getItem("language") || "en");
   const t = translations[language] || translations.en;
   const toggleLanguage = () => {
@@ -284,7 +281,6 @@ export default function App() {
     localStorage.setItem("language", next);
   };
 
-  // Firebase singleton init (memoized)
   const firebaseConfig = useMemo(loadFirebaseConfig, []);
   const [configError, setConfigError] = useState(!firebaseConfig);
 
@@ -299,8 +295,6 @@ export default function App() {
   const [app, setApp] = useState(null);
   const [auth, setAuth] = useState(null);
   const [db, setDb] = useState(null);
-  // REMOVED: `storage` and `setStorage` as Firebase Storage is no longer used directly
-  
   const [userIdentifier, setUserIdentifier] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -310,13 +304,12 @@ export default function App() {
   const [userApartment, setUserApartment] = useState(null);
   const [residents, setResidents] = useState([]);
   const [privateDocuments, setPrivateDocuments] = useState([]);
-  const privateFilesRef = useRef(null);
   const privateFolderNameRef = useRef(null);
   const [selectedResidentUid, setSelectedResidentUid] = useState("");
   const [selectedPrivateFiles, setSelectedPrivateFiles] = useState([]);
+  const [selectedFileNames, setSelectedFileNames] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
-
   const [view, setView] = useState("announcements");
   const [announcements, setAnnouncements] = useState([]);
   const [pqrs, setPqrs] = useState([]);
@@ -357,11 +350,9 @@ export default function App() {
         const appInstance = getApps().length ? getApp() : initializeApp(firebaseConfig);
         const authInstance = getAuth(appInstance);
         const dbInstance = getFirestore(appInstance);
-        // REMOVED: getStorage call
         setApp(appInstance);
         setAuth(authInstance);
         setDb(dbInstance);
-        // REMOVED: setStorage call
 
         const unsub = onAuthStateChanged(authInstance, async (user) => {
           try {
@@ -549,9 +540,9 @@ export default function App() {
     setUploading(true);
     let imageUrls = [];
 
-    // This section assumes that the user will not be uploading images for announcements since Firebase Storage
-    // is not being used directly. If you want this feature, you would need to implement it
-    // with a similar Netlify Function-based approach as the private file uploads.
+    // Assuming this feature is not currently used since Firebase Storage is not
+    // being used directly. Add the logic to upload images via a Netlify function
+    // if needed.
 
     try {
       const path = `artifacts/${appId}/public/data/announcements`;
@@ -676,9 +667,8 @@ export default function App() {
 
   const handleAddPQR = async (e) => {
     e.preventDefault();
-    // This part of the function still relies on Firebase Storage.
-    // If you need this to work, you'll need to enable Firebase Storage
-    // for your portalmalaga-bad62 project, or also use a Netlify function.
+    // This feature requires Firebase Storage. Assuming it is not in use or that 
+    // Firebase Storage has been enabled.
     if (!db || !storage || !auth?.currentUser?.uid) return;
 
     const name = pqrNameRef.current?.value?.trim();
@@ -691,8 +681,9 @@ export default function App() {
     let fileUrl = null;
 
     try {
-      // Logic for uploading PQR file would go here if using a Netlify function.
-      // For now, this part assumes Firebase Storage is enabled or the feature is unused.
+      // Logic for uploading PQR file
+      // If you are using a Netlify function for this, it would be a separate implementation.
+      // Assuming this is handled by Firebase Storage as per the original code.
       
       const path = `artifacts/${appId}/public/data/pqrs`;
       await addDoc(collection(db, path), {
