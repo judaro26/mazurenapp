@@ -23,7 +23,6 @@ import {
   deleteDoc,
   where,
 } from "firebase/firestore";
-// Re-added for the PQR functionality
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 /**
@@ -125,7 +124,7 @@ const translations = {
       opt2Title: "Opción B: Variables de entorno en Netlify",
       opt2Desc:
         "Configure las variables REACT_APP_FIREBASE_* en Site settings → Build & deploy → Environment. Luego vuelva a desplegar.",
-      required: "Claves requeridas: apiKey, authDomain, projectId, appId",
+      required: "Required keys: apiKey, authDomain, projectId, appId",
     },
   },
   es: {
@@ -295,7 +294,6 @@ export default function App() {
   const [app, setApp] = useState(null);
   const [auth, setAuth] = useState(null);
   const [db, setDb] = useState(null);
-  const [storage, setStorage] = useState(null);
   const [userIdentifier, setUserIdentifier] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -351,8 +349,6 @@ export default function App() {
         const appInstance = getApps().length ? getApp() : initializeApp(firebaseConfig);
         const authInstance = getAuth(appInstance);
         const dbInstance = getFirestore(appInstance);
-        // We're now importing getStorage dynamically for the PQR function
-        // so no need to declare `storageInstance` here.
         setApp(appInstance);
         setAuth(authInstance);
         setDb(dbInstance);
@@ -581,15 +577,17 @@ export default function App() {
     setErrorMsg("");
 
     const file = selectedPrivateFiles[0];
-    // CORRECTED: Get the value from the ref, which reflects the user's input
     const folderPath = privateFolderNameRef.current?.value?.trim() || "general";
     const privateDocsCollection = collection(db, `artifacts/${appId}/public/data/users/${selectedResidentUid}/privateDocuments`);
     
     try {
       const formData = new FormData();
       formData.append('file', file);
+      // CORRECTED: Pass the filename from the file object
       formData.append('fileName', file.name);
+      // CORRECTED: Use the folderPath from the ref value
       formData.append('folderPath', folderPath);
+      // CORRECTED: Use the selectedResidentUid state value
       formData.append('residentUid', selectedResidentUid);
       
       const response = await fetch('/.netlify/functions/uploadToGcs', {
