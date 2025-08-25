@@ -18,41 +18,24 @@ exports.handler = async (event, context) => {
   const bucketName = 'portalmalaga2025';
   const bucket = storage.bucket(bucketName);
 
-  return new Promise((resolve) => {
-    const busboy = Busboy({
-      headers: event.headers
-    });
+  return new Promise((resolve, reject) => {
+    const busboy = Busboy({ headers: event.headers });
     const fields = {};
-    let fileInfo = {};
+    let fileStreamPromise;
 
     busboy.on('field', (fieldname, val) => {
       fields[fieldname] = val;
     });
 
     busboy.on('file', (fieldname, file, filenameInfo) => {
-      // Store file and filename info but don't process yet
-      fileInfo = { file, filenameInfo };
-    });
-
-    busboy.on('finish', async () => {
-      try {
-        const { file, filenameInfo } = fileInfo;
-        const filename = filenameInfo.filename;
+      fileStreamPromise = new Promise((resolveFile, rejectFile) => {
+        // Construct the file path here
         const residentUid = fields.residentUid || 'unknown';
         const folderPath = fields.folderPath || '';
-
-        if (!file) {
-          return resolve({
-            statusCode: 400,
-            body: JSON.stringify({ error: 'No file uploaded.' }),
-          });
-        }
-        
-        // Use the fields that are now available
-        const finalFileName = folderPath ? `${folderPath}${filename}` : filename;
+        const finalFileName = folderPath ? `${folderPath}${filenameInfo.filename}` : filenameInfo.filename;
         const filePath = `private_files/${residentUid}/${finalFileName}`;
         const gcsFile = bucket.file(filePath);
-
+        
         const writeStream = gcsFile.createWriteStream({
           metadata: {
             contentType: filenameInfo.mimetype,
@@ -61,23 +44,42 @@ exports.handler = async (event, context) => {
 
         file.pipe(writeStream);
 
-        await new Promise((resolveStream, rejectStream) => {
-          writeStream.on('finish', resolveStream);
-          writeStream.on('error', (err) => {
-            console.error('Upload to GCS failed:', err);
-            rejectStream(new Error(`Upload to GCS failed: ${err.message}`));
-          });
+        writeStream.on('finish', () => {
+          const publicUrl = `https://storage.googleapis.com/${bucketName}/${encodeURIComponent(filePath)}`;
+          resolveFile(publicUrl);
         });
 
-        const publicUrl = `https://storage.googleapis.com/${bucketName}/${encodeURIComponent(filePath)}`;
-        
+        writeStream.on('error', (err) => {
+          console.error('Upload to GCS failed:', err);
+          rejectFile(new Error(`Upload to GCS failed: ${err.message}`));
+        });
+      });
+    });
+
+    busboy.on('error', (err) => {
+      console.error('Busboy error:', err);
+      reject({
+        statusCode: 500,
+        body: JSON.stringify({ error: `Busboy parsing failed: ${err.message}` }),
+      });
+    });
+
+    busboy.on('finish', async () => {
+      if (!fileStreamPromise) {
+        return resolve({
+          statusCode: 400,
+          body: JSON.stringify({ error: 'No file uploaded.' }),
+        });
+      }
+
+      try {
+        const fileUrl = await fileStreamPromise;
         resolve({
           statusCode: 200,
-          body: JSON.stringify({ fileUrl: publicUrl }),
+          body: JSON.stringify({ fileUrl }),
         });
       } catch (error) {
-        console.error("Server-side error:", error);
-        resolve({
+        reject({
           statusCode: 500,
           body: JSON.stringify({ error: `Server-side error: ${error.message}` }),
         });
