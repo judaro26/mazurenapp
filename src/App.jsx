@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { initializeApp, getApps, getApp } from "firebase/app";
 import {
   getAuth,
@@ -303,7 +303,7 @@ export default function App() {
   const [userApartment, setUserApartment] = useState(null);
   const [residents, setResidents] = useState([]);
   const [privateDocuments, setPrivateDocuments] = useState([]);
-  const privateFolderNameRef = useRef(null);
+  const [privateFolderPath, setPrivateFolderPath] = useState("");
   const [selectedResidentUid, setSelectedResidentUid] = useState("");
   const [selectedPrivateFiles, setSelectedPrivateFiles] = useState([]);
   const [selectedFileNames, setSelectedFileNames] = useState([]);
@@ -329,14 +329,14 @@ export default function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
-  const announcementTitleRef = useRef(null);
-  const announcementBodyRef = useRef(null);
-  const pqrNameRef = useRef(null);
-  const pqrApartmentRef = useRef(null);
-  const pqrTitleRef = useRef(null);
-  const pqrBodyRef = useRef(null);
-  const documentNameRef = useRef(null);
-  const documentUrlRef = useRef(null);
+  const announcementTitleRef = React.useRef(null);
+  const announcementBodyRef = React.useRef(null);
+  const pqrNameRef = React.useRef(null);
+  const pqrApartmentRef = React.useRef(null);
+  const pqrTitleRef = React.useRef(null);
+  const pqrBodyRef = React.useRef(null);
+  const documentNameRef = React.useRef(null);
+  const documentUrlRef = React.useRef(null);
 
   useEffect(() => {
     (async () => {
@@ -577,7 +577,7 @@ export default function App() {
     setErrorMsg("");
 
     const file = selectedPrivateFiles[0];
-    const folderPath = privateFolderNameRef.current?.value?.trim() || "general";
+    const folderPath = privateFolderPath.trim() || "general";
     const privateDocsCollection = collection(db, `artifacts/${appId}/public/data/users/${selectedResidentUid}/privateDocuments`);
     
     try {
@@ -585,7 +585,7 @@ export default function App() {
       formData.append('file', file);
       // CORRECTED: Pass the filename from the file object
       formData.append('fileName', file.name);
-      // CORRECTED: Use the folderPath from the ref value
+      // CORRECTED: Use the folderPath from the state value
       formData.append('folderPath', folderPath);
       // CORRECTED: Use the selectedResidentUid state value
       formData.append('residentUid', selectedResidentUid);
@@ -613,6 +613,7 @@ export default function App() {
       setShowModal(null);
       setSelectedPrivateFiles([]);
       setSelectedFileNames([]);
+      setPrivateFolderPath(""); // Reset folder path state
     } catch (err) {
       console.error("Error uploading private file:", err);
       setErrorMsg(`Failed to upload private file: ${err.message}`);
@@ -1252,9 +1253,9 @@ export default function App() {
                                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                                 <line x1="10" y1="11" x2="10" y2="17"></line>
                                 <line x1="14" y1="11" x2="14" y2="17"></line>
-                            </svg>
-                          </button>
-                        )}
+                              </svg>
+                            </button>
+                          )}
                         </div>
                       )}
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -1635,7 +1636,7 @@ export default function App() {
         {isManager && showModal === "upload_private_doc" && (
           <Modal
             title={t.modal.uploadPrivate}
-            onClose={() => { setShowModal(null); setSelectedPrivateFiles([]); setSelectedFileNames([]); }}
+            onClose={() => { setShowModal(null); setSelectedPrivateFiles([]); setSelectedFileNames([]); setPrivateFolderPath(""); }}
           >
             <form onSubmit={handleUploadPrivateFiles} className="space-y-4">
               <div>
@@ -1661,7 +1662,8 @@ export default function App() {
                 <label className="block text-sm font-medium mb-1">{t.modal.folderPath}</label>
                 <input
                   type="text"
-                  ref={privateFolderNameRef}
+                  value={privateFolderPath}
+                  onChange={(e) => setPrivateFolderPath(e.target.value)}
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder={t.modal.folderPathPlaceholder}
                 />
@@ -1692,7 +1694,7 @@ export default function App() {
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => { setShowModal(null); setSelectedPrivateFiles([]); setSelectedFileNames([]); }}
+                  onClick={() => { setShowModal(null); setSelectedPrivateFiles([]); setSelectedFileNames([]); setPrivateFolderPath(""); }}
                   className="bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
                 >
                   {t.modal.cancel}
