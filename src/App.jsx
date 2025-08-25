@@ -23,7 +23,8 @@ import {
   deleteDoc,
   where,
 } from "firebase/firestore";
-// REMOVED: import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+// Re-added for the PQR functionality
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 /**
  * ----------------------------------------------
@@ -294,6 +295,7 @@ export default function App() {
   const [app, setApp] = useState(null);
   const [auth, setAuth] = useState(null);
   const [db, setDb] = useState(null);
+  const [storage, setStorage] = useState(null);
   const [userIdentifier, setUserIdentifier] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -539,9 +541,9 @@ export default function App() {
     setUploading(true);
     let imageUrls = [];
 
-    // Assuming this feature is not currently used since Firebase Storage is not
-    // being used directly. Add the logic to upload images via a Netlify function
-    // if needed.
+    // This section assumes that the user will not be uploading images for announcements since Firebase Storage
+    // is not being used directly. If you want this feature, you would need to implement it
+    // with a similar Netlify Function-based approach as the private file uploads.
 
     try {
       const path = `artifacts/${appId}/public/data/announcements`;
@@ -567,7 +569,6 @@ export default function App() {
   const handleUploadPrivateFiles = async (e) => {
     e.preventDefault();
     
-    // Validate form input
     if (!selectedResidentUid || selectedPrivateFiles.length === 0) {
       setErrorMsg("Please select a resident and at least one file.");
       return;
@@ -680,12 +681,6 @@ export default function App() {
 
     try {
       if (pqrFile) {
-        // This part of the function still relies on Firebase Storage.
-        // If you need this to work, you'll need to enable Firebase Storage
-        // for your portalmalaga-bad62 project, or also use a Netlify function.
-        // The previous changes removed the Firebase Storage imports.
-        // I will re-add them for this part of the functionality to work,
-        // but it's important to remember this may incur costs if the project is on a paid plan.
         const storage = getStorage(app);
         const storagePath = `pqrs/${auth.currentUser.uid}-${Date.now()}-${pqrFile.name}`;
         const fileRef = ref(storage, storagePath);
