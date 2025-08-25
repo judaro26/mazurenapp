@@ -22,6 +22,7 @@ import {
   updateDoc,
   deleteDoc,
   where,
+  collectionGroup, // Import collectionGroup
 } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
@@ -468,6 +469,13 @@ export default function App() {
           (snap) => setPrivateDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
           (err) => console.error("Private Documents listener error:", err)
         );
+      } else if (isManager) {
+        // Manager view: listen to all private documents via a collection group query
+        unsubPrivateDocs = onSnapshot(
+          query(collectionGroup(db, 'privateDocuments'), orderBy("createdAt", "desc")),
+          (snap) => setPrivateDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+          (err) => console.error("Private Documents listener error:", err)
+        );
       } else {
         setPrivateDocuments([]);
       }
@@ -577,7 +585,7 @@ export default function App() {
     setErrorMsg("");
 
     const file = selectedPrivateFiles[0];
-    const folderPath = privateFolderPath.trim() || "general";
+    const folderPath = privateFolderPath.trim() || "";
     const privateDocsCollection = collection(db, `artifacts/${appId}/public/data/users/${selectedResidentUid}/privateDocuments`);
     
     try {
@@ -1662,8 +1670,8 @@ export default function App() {
                 <label className="block text-sm font-medium mb-1">{t.modal.folderPath}</label>
                 <input
                   type="text"
-                  value={privateFolderPath}
-                  onChange={(e) => setPrivateFolderPath(e.target.value)}
+                  value={privateFolderPath} // Correct usage with state
+                  onChange={(e) => setPrivateFolderPath(e.target.value)} // Correct usage with state
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder={t.modal.folderPathPlaceholder}
                 />
