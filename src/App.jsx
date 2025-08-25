@@ -84,7 +84,7 @@ const translations = {
       documentNamePlaceholder: "e.g., 2024 Annual Budget",
       documentUrl: "Document URL",
       documentUrlPlaceholder: "e.g., https://example.com/budget.pdf",
-      upload: "Upload",
+      upload: "Subir",
       cancel: "Cancel",
       image: "Image (optional)",
       file: "File (optional)",
@@ -295,7 +295,6 @@ export default function App() {
   const [app, setApp] = useState(null);
   const [auth, setAuth] = useState(null);
   const [db, setDb] = useState(null);
-  const [storage, setStorage] = useState(null);
   const [userIdentifier, setUserIdentifier] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -569,6 +568,7 @@ export default function App() {
   const handleUploadPrivateFiles = async (e) => {
     e.preventDefault();
     
+    // Validate form input
     if (!selectedResidentUid || selectedPrivateFiles.length === 0) {
       setErrorMsg("Please select a resident and at least one file.");
       return;
@@ -680,13 +680,13 @@ export default function App() {
     let fileUrl = null;
 
     try {
-      if (pqrFile) {
-        const storage = getStorage(app);
-        const storagePath = `pqrs/${auth.currentUser.uid}-${Date.now()}-${pqrFile.name}`;
-        const fileRef = ref(storage, storagePath);
-        await uploadBytes(fileRef, pqrFile);
-        fileUrl = await getDownloadURL(fileRef);
-      }
+      // Re-added the import for Firebase Storage so this function can still be used
+      const { getStorage, ref, uploadBytes, getDownloadURL } = await import("firebase/storage");
+      const storage = getStorage(app);
+      const storagePath = `pqrs/${auth.currentUser.uid}-${Date.now()}-${pqrFile.name}`;
+      const fileRef = ref(storage, storagePath);
+      await uploadBytes(fileRef, pqrFile);
+      fileUrl = await getDownloadURL(fileRef);
 
       const path = `artifacts/${appId}/public/data/pqrs`;
       await addDoc(collection(db, path), {
@@ -1248,9 +1248,9 @@ export default function App() {
                                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                                 <line x1="10" y1="11" x2="10" y2="17"></line>
                                 <line x1="14" y1="11" x2="14" y2="17"></line>
-                              </svg>
-                            </button>
-                          )}
+                            </svg>
+                          </button>
+                        )}
                         </div>
                       )}
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
