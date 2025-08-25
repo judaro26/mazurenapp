@@ -120,7 +120,7 @@ const translations = {
       how: "How to fix",
       opt1Title: "Option A: Inject __firebase_config",
       opt1Desc:
-        "Add a <script> before your bundle that sets window.__firebase_config = {...}.",
+        "Add a <script> before your bundle that defina window.__firebase_config = {...}.",
       opt2Title: "Option B: Netlify env vars",
       opt2Desc:
         "Set REACT_APP_FIREBASE_* variables in Site settings → Build & deploy → Environment. Then redeploy.",
@@ -531,7 +531,6 @@ export default function App() {
 
   const handleAddAnnouncement = async (e) => {
     e.preventDefault();
-    // Use Firestore only to add a document with image URLs.
     if (!db || !auth?.currentUser?.uid) return;
     const title = announcementTitleRef.current?.value?.trim();
     const body = announcementBodyRef.current?.value?.trim();
@@ -680,6 +679,20 @@ export default function App() {
     let fileUrl = null;
 
     try {
+      if (pqrFile) {
+        // This part of the function still relies on Firebase Storage.
+        // If you need this to work, you'll need to enable Firebase Storage
+        // for your portalmalaga-bad62 project, or also use a Netlify function.
+        // The previous changes removed the Firebase Storage imports.
+        // I will re-add them for this part of the functionality to work,
+        // but it's important to remember this may incur costs if the project is on a paid plan.
+        const storage = getStorage(app);
+        const storagePath = `pqrs/${auth.currentUser.uid}-${Date.now()}-${pqrFile.name}`;
+        const fileRef = ref(storage, storagePath);
+        await uploadBytes(fileRef, pqrFile);
+        fileUrl = await getDownloadURL(fileRef);
+      }
+
       const path = `artifacts/${appId}/public/data/pqrs`;
       await addDoc(collection(db, path), {
         name,
