@@ -28,9 +28,9 @@ exports.handler = async (event, context) => {
     });
 
     busboy.on('file', (fieldname, file, filenameInfo) => {
-      // This handler will now execute after all fields are parsed.
       const { filename } = filenameInfo;
       const promise = new Promise((resolveFile, rejectFile) => {
+        // Correctly use the parsed fields to build the file path
         const folderPath = fields.folderPath || 'general';
         const residentUid = fields.residentUid || 'unknown';
         const filePath = `private_files/${residentUid}/${folderPath}/${filename}`;
