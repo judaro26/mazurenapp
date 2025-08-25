@@ -23,6 +23,8 @@ import {
   deleteDoc,
   where,
 } from "firebase/firestore";
+// Re-added for the PQR functionality
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 /**
  * ----------------------------------------------
@@ -119,11 +121,11 @@ const translations = {
       how: "How to fix",
       opt1Title: "Option A: Inject __firebase_config",
       opt1Desc:
-        "Add a <script> before your bundle that defina window.__firebase_config = {...}.",
-      opt2Title: "Option B: Netlify env vars",
+        "Agregue un <script> antes de su bundle que defina window.__firebase_config = {...}.",
+      opt2Title: "Opción B: Variables de entorno en Netlify",
       opt2Desc:
-        "Set REACT_APP_FIREBASE_* variables in Site settings → Build & deploy → Environment. Then redeploy.",
-      required: "Required keys: apiKey, authDomain, projectId, appId",
+        "Configure las variables REACT_APP_FIREBASE_* en Site settings → Build & deploy → Environment. Luego vuelva a desplegar.",
+      required: "Claves requeridas: apiKey, authDomain, projectId, appId",
     },
   },
   es: {
