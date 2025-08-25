@@ -23,8 +23,6 @@ import {
   deleteDoc,
   where,
 } from "firebase/firestore";
-// Re-added for the PQR functionality
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 /**
  * ----------------------------------------------
@@ -84,7 +82,7 @@ const translations = {
       documentNamePlaceholder: "e.g., 2024 Annual Budget",
       documentUrl: "Document URL",
       documentUrlPlaceholder: "e.g., https://example.com/budget.pdf",
-      upload: "Subir",
+      upload: "Upload",
       cancel: "Cancel",
       image: "Image (optional)",
       file: "File (optional)",
@@ -584,8 +582,11 @@ export default function App() {
     try {
       const formData = new FormData();
       formData.append('file', file);
+      // CORRECTED: Pass the filename from the file object
       formData.append('fileName', file.name);
+      // CORRECTED: Use the folderPath from the ref value
       formData.append('folderPath', folderPath);
+      // CORRECTED: Use the selectedResidentUid state value
       formData.append('residentUid', selectedResidentUid);
       
       const response = await fetch('/.netlify/functions/uploadToGcs', {
@@ -668,7 +669,7 @@ export default function App() {
 
   const handleAddPQR = async (e) => {
     e.preventDefault();
-    if (!db || !auth?.currentUser?.uid) return;
+    if (!db || !app || !auth?.currentUser?.uid) return;
 
     const name = pqrNameRef.current?.value?.trim();
     const apartment = pqrApartmentRef.current?.value?.trim();
@@ -680,13 +681,15 @@ export default function App() {
     let fileUrl = null;
 
     try {
-      // Re-added the import for Firebase Storage so this function can still be used
-      const { getStorage, ref, uploadBytes, getDownloadURL } = await import("firebase/storage");
-      const storage = getStorage(app);
-      const storagePath = `pqrs/${auth.currentUser.uid}-${Date.now()}-${pqrFile.name}`;
-      const fileRef = ref(storage, storagePath);
-      await uploadBytes(fileRef, pqrFile);
-      fileUrl = await getDownloadURL(fileRef);
+      if (pqrFile) {
+        // CORRECTED: Use dynamic import to get storage functions
+        const { getStorage, ref, uploadBytes, getDownloadURL } = await import("firebase/storage");
+        const storage = getStorage(app);
+        const storagePath = `pqrs/${auth.currentUser.uid}-${Date.now()}-${pqrFile.name}`;
+        const fileRef = ref(storage, storagePath);
+        await uploadBytes(fileRef, pqrFile);
+        fileUrl = await getDownloadURL(fileRef);
+      }
 
       const path = `artifacts/${appId}/public/data/pqrs`;
       await addDoc(collection(db, path), {
