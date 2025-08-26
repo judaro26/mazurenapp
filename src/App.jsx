@@ -470,16 +470,10 @@ export default function App() {
           (err) => console.error("Private Documents listener error:", err)
         );
       } else if (isManager) {
-        // Manager view: Modified collection group query with appId constraints
-        const privateDocsQuery = query(
-          collectionGroup(db, 'privateDocuments'),
-          where('__name__', '>=', `artifacts/${appId}/`),
-          where('__name__', '<=', `artifacts/${appId}/~`),
-          orderBy("createdAt", "desc")
-        );
-        
+        // For managers, use a simple collection group query
+        // The security rules will handle the permissions
         unsubPrivateDocs = onSnapshot(
-          privateDocsQuery,
+          query(collectionGroup(db, 'privateDocuments'), orderBy("createdAt", "desc")),
           (snap) => setPrivateDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
           (err) => console.error("Private Documents listener error:", err)
         );
