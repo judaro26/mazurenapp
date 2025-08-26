@@ -22,7 +22,7 @@ import {
   updateDoc,
   deleteDoc,
   where,
-  collectionGroup, // Import collectionGroup
+  collectionGroup,
 } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
@@ -79,7 +79,7 @@ const translations = {
       pqrPlaceholder: "e.g., Noise complaint from unit 10B",
       pqrBodyPlaceholder:
         "e.g., The residents of unit 10B have been playing loud music...",
-      submit: "Enviar",
+      submit: "Submit",
       documentName: "Document Name",
       documentNamePlaceholder: "e.g., 2024 Annual Budget",
       documentUrl: "Document URL",
@@ -121,10 +121,10 @@ const translations = {
       how: "How to fix",
       opt1Title: "Option A: Inject __firebase_config",
       opt1Desc:
-        "Agregue un <script> antes de su bundle que defina window.__firebase_config = {...}.",
-      opt2Title: "Opción B: Variables de entorno en Netlify",
+        "Add a <script> before your bundle that defines window.__firebase_config = {...}.",
+      opt2Title: "Option B: Environment variables on Netlify",
       opt2Desc:
-        "Configure las variables REACT_APP_FIREBASE_* en Site settings → Build & deploy → Environment. Luego vuelva a desplegar.",
+        "Set REACT_APP_FIREBASE_* variables in Site settings → Build & deploy → Environment. Then redeploy.",
       required: "Required keys: apiKey, authDomain, projectId, appId",
     },
   },
@@ -365,66 +365,38 @@ export default function App() {
                 setIsManager(false);
                 setUserRole("anonymous");
                 setUserApartment(null);
-                setIsAuthReady(true);
-                setLoading(false);
               } else {
                 // Force refresh the ID token to ensure we have the latest claims
-                try {
-                  await user.getIdToken(true); // Force refresh
-                  const idTokenResult = await user.getIdTokenResult();
-                  const isManagerStatus = idTokenResult.claims?.isManager === true;
-                  
-                  console.log("Custom claims from token:", idTokenResult.claims);
-                  console.log("isManager from claims:", isManagerStatus);
+                await user.getIdToken(true); // Force refresh
+                const idTokenResult = await user.getIdTokenResult();
+                const isManagerStatus = idTokenResult.claims?.isManager === true;
+                
+                console.log("Custom claims from token:", idTokenResult.claims);
+                console.log("isManager from claims:", isManagerStatus);
         
-                  const userDocRef = doc(dbInstance, `artifacts/${appId}/public/data/users`, user.uid);
-                  const snap = await getDoc(userDocRef);
-                  
-                  let finalIsManagerStatus = isManagerStatus;
-                  
-                  if (snap.exists()) {
-                    const userData = snap.data();
-                    setUserApartment(userData.apartment || null);
-                    
-                    // Use Firestore value if custom claim check fails
-                    if (userData.isManager !== undefined) {
-                      finalIsManagerStatus = userData.isManager;
-                      console.log("Using Firestore isManager value:", finalIsManagerStatus);
-                    }
-                  } else {
-                    await setDoc(userDocRef, { 
-                      isManager: isManagerStatus, 
-                      email: user.email || null,
-                      name: null,
-                      apartment: null,
-                      phone: null
-                    });
-                    setUserApartment(null);
-                  }
-        
-                  setIsManager(finalIsManagerStatus);
-                  setUserRole(finalIsManagerStatus ? "manager" : "resident");
-                  console.log("Final user role:", finalIsManagerStatus ? "manager" : "resident");
-        
-                } catch (tokenError) {
-                  console.error("Error getting ID token:", tokenError);
-                  // Fallback to checking Firestore directly
-                  const userDocRef = doc(dbInstance, `artifacts/${appId}/public/data/users`, user.uid);
-                  const snap = await getDoc(userDocRef);
-                  
-                  let isManagerStatus = false;
-                  if (snap.exists()) {
-                    const userData = snap.data();
-                    isManagerStatus = userData.isManager === true;
-                    setUserApartment(userData.apartment || null);
-                  }
-                  
-                  setIsManager(isManagerStatus);
-                  setUserRole(isManagerStatus ? "manager" : "resident");
+                const userDocRef = doc(dbInstance, `artifacts/${appId}/public/data/users`, user.uid);
+                const snap = await getDoc(userDocRef);
+                
+                if (snap.exists()) {
+                  const userData = snap.data();
+                  setUserApartment(userData.apartment || null);
+                  // The isManager field from Firestore is now only for reference,
+                  // the logic below relies on the custom claim.
+                } else {
+                  await setDoc(userDocRef, { 
+                    isManager: isManagerStatus, 
+                    email: user.email || null,
+                    name: null,
+                    apartment: null,
+                    phone: null
+                  });
+                  setUserApartment(null);
                 }
         
-                setIsAuthReady(true);
-                setLoading(false);
+                // Set the manager status and role based directly on the custom claim.
+                setIsManager(isManagerStatus);
+                setUserRole(isManagerStatus ? "manager" : "resident");
+                console.log("Final user role:", isManagerStatus ? "manager" : "resident");
               }
             } else {
               setUserIdentifier(null);
@@ -433,15 +405,24 @@ export default function App() {
               setUserRole(null);
               setUserEmail(null);
               setUserApartment(null);
-              setIsAuthReady(true);
-              setLoading(false);
             }
           } catch (err) {
             console.error("Auth state change error:", err);
             setErrorMsg("Failed to load user profile.");
+          } finally {
+            setIsAuthReady(true);
             setLoading(false);
           }
         });
+
+        return () => unsub();
+      } catch (err) {
+        console.error("Firebase initialization failed:", err);
+        setConfigError(true);
+        setLoading(false);
+      }
+    })();
+  }, [firebaseConfig, appId]);
 
   useEffect(() => {
     if (!db || !isAuthReady) return;
@@ -1444,6 +1425,38 @@ export default function App() {
                 </button>
               </div>
               <p className="text-gray-500 italic">This is the manager's view of private file uploads.</p>
+              <ul className="space-y-4 mt-4">
+                {privateDocuments.length === 0 ? (
+                  <li className="text-gray-500 italic text-center py-4">{t.noPrivateDocs}</li>
+                ) : (
+                  privateDocuments.map((doc) => (
+                    <li
+                      key={doc.id}
+                      className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center relative"
+                    >
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold">{doc.fileName}</h3>
+                        <p className="text-sm text-gray-500">
+                          {t.modal.folderPath}: {doc.folder || "N/A"}
+                        </p>
+                        {doc.createdAt && (
+                          <p className="text-sm text-gray-400 mt-1">
+                            {t.uploaded} {formatTimestamp(doc.createdAt)}
+                          </p>
+                        )}
+                      </div>
+                      <a
+                        href={doc.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 sm:mt-0 bg-blue-100 text-blue-800 px-4 py-2 rounded-full font-semibold hover:bg-blue-200 transition-colors inline-block"
+                      >
+                        {t.viewDocument}
+                      </a>
+                    </li>
+                  ))
+                )}
+              </ul>
             </div>
           )}
 
@@ -1463,7 +1476,7 @@ export default function App() {
                       <div className="flex-1">
                         <h3 className="text-lg font-semibold">{doc.fileName}</h3>
                         <p className="text-sm text-gray-500">
-                          {t.modal.folderPath}: {doc.folder}
+                          {t.modal.folderPath}: {doc.folder || "N/A"}
                         </p>
                         {doc.createdAt && (
                           <p className="text-sm text-gray-400 mt-1">
@@ -1704,7 +1717,7 @@ export default function App() {
                 <label className="block text-sm font-medium mb-1">{t.modal.folderPath}</label>
                 <input
                   type="text"
-                  ref={privateFolderPathRef} // Use the ref here
+                  ref={privateFolderPathRef}
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder={t.modal.folderPathPlaceholder}
                 />
