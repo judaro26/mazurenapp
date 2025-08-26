@@ -418,104 +418,108 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-      if (!db || !isAuthReady) return;
-      
-      const announcementsPath = `artifacts/${appId}/public/data/announcements`;
-      const pqrsPath = `artifacts/${appId}/public/data/pqrs`;
-      const documentsPath = `artifacts/${appId}/public/data/documents`;
-      const usersPath = `artifacts/${appId}/public/data/users`;
-      
-      let unsubAnnouncements = () => {};
-      let unsubPqrs = () => {};
-      let unsubDocs = () => {};
-      let unsubPrivateDocs = () => {};
-      let unsubResidents = () => {};
-      
-      try {
-          // Announcements
-          unsubAnnouncements = onSnapshot(
-              query(collection(db, announcementsPath), orderBy("createdAt", "desc")),
-              (snap) => setAnnouncements(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-              (err) => console.error("Announcements listener error:", err)
-          );
-        
-          // PQRs (only for authenticated users)
-          if (isLoggedIn && userRole !== "anonymous") {
-              if (isManager) {
-                  unsubPqrs = onSnapshot(
-                      query(collection(db, pqrsPath), orderBy("createdAt", "desc")),
-                      (snap) => setPqrs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-                      (err) => console.error("PQRs listener error:", err)
-                  );
-              } else if (auth?.currentUser?.uid) {
-                  unsubPqrs = onSnapshot(
-                      query(collection(db, pqrsPath), where("authorId", "==", auth.currentUser.uid), orderBy("createdAt", "desc")),
-                      (snap) => setPqrs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-                      (err) => console.error("PQRs listener error:", err)
-                  );
-              }
-          } else {
-              setPqrs([]);
-          }
-  
-          // Documents
-          unsubDocs = onSnapshot(
-              query(collection(db, documentsPath), orderBy("createdAt", "desc")),
-              (snap) => setDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-              (err) => console.error("Documents listener error:", err)
-          );
-          
-          // Residents (only for managers)
-          if (isManager) {
-              unsubResidents = onSnapshot(
-                  query(collection(db, usersPath), where("isManager", "==", false)),
-                  (snap) => {
-                      const residentsList = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-                      setResidents(residentsList);
-                      if (residentsList.length > 0) {
-                          setSelectedResidentUid(residentsList[0].id);
-                      }
-                  },
-                  (err) => console.error("Residents list listener error:", err)
-              );
-          } else {
-              setResidents([]);
-          }
-          
-          // Private Documents (for both residents and managers)
-          if (userRole === "resident" && auth?.currentUser?.uid) {
-              const privateDocsPath = `${usersPath}/${auth.currentUser.uid}/privateDocuments`;
-              unsubPrivateDocs = onSnapshot(
-                  query(collection(db, privateDocsPath), orderBy("createdAt", "desc")),
-                  (snap) => setPrivateDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-                  (err) => console.error("Private Documents listener error:", err)
-              );
-          } else if (isManager) {
-              // For managers, use collectionGroup query but ensure security rules allow it
-              // Your existing rule on the subcollection is sufficient and should work.
-              // The error is likely due to the lack of a composite index.
-              // Ensure you have a composite index for `privateDocuments` on field `createdAt` in Firestore.
-              unsubPrivateDocs = onSnapshot(
-                  query(collectionGroup(db, 'privateDocuments'), orderBy("createdAt", "desc")),
-                  (snap) => setPrivateDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-                  (err) => console.error("Private Documents listener error:", err)
-              );
-          } else {
-              setPrivateDocuments([]);
-          }
-  
-      } catch (err) {
-          console.error("Error setting up Firestore listeners:", err);
-      }
-      
-      return () => {
-          unsubAnnouncements();
-          unsubPqrs();
-          unsubDocs();
-          unsubResidents();
-          unsubPrivateDocs();
-      };
-  }, [db, isAuthReady, appId, isLoggedIn, isManager, auth, userRole]);
+    if (!db || !isAuthReady) return;
+    
+    const announcementsPath = `artifacts/${appId}/public/data/announcements`;
+    const pqrsPath = `artifacts/${appId}/public/data/pqrs`;
+    const documentsPath = `artifacts/${appId}/public/data/documents`;
+    const usersPath = `artifacts/${appId}/public/data/users`;
+    
+    let unsubAnnouncements = () => {};
+    let unsubPqrs = () => {};
+    let unsubDocs = () => {};
+    let unsubPrivateDocs = () => {};
+    let unsubResidents = () => {};
+    
+    try {
+        // Announcements are public and can be read by any authenticated user, including anonymous.
+        unsubAnnouncements = onSnapshot(
+            query(collection(db, announcementsPath), orderBy("createdAt", "desc")),
+            (snap) => {
+                setAnnouncements(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+            },
+            (err) => console.error("Announcements listener error:", err)
+        );
+
+        // PQRs listener should only be active for non-anonymous users.
+        // The check for `isLoggedIn && userRole !== "anonymous"` handles this.
+        if (isLoggedIn && userRole !== "anonymous") {
+            if (isManager) {
+                unsubPqrs = onSnapshot(
+                    query(collection(db, pqrsPath), orderBy("createdAt", "desc")),
+                    (snap) => setPqrs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+                    (err) => console.error("PQRs listener error:", err)
+                );
+            } else if (auth?.currentUser?.uid) {
+                unsubPqrs = onSnapshot(
+                    query(collection(db, pqrsPath), where("authorId", "==", auth.currentUser.uid), orderBy("createdAt", "desc")),
+                    (snap) => setPqrs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+                    (err) => console.error("PQRs listener error:", err)
+                );
+            }
+        } else {
+            setPqrs([]);
+        }
+
+        // Documents are public and can be read by any authenticated user.
+        unsubDocs = onSnapshot(
+            query(collection(db, documentsPath), orderBy("createdAt", "desc")),
+            (snap) => setDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+            (err) => console.error("Documents listener error:", err)
+        );
+
+        // Residents listener should only be active for managers.
+        // The check for `isManager` handles this.
+        if (isManager) {
+            unsubResidents = onSnapshot(
+                query(collection(db, usersPath), where("isManager", "==", false)),
+                (snap) => {
+                    const residentsList = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+                    setResidents(residentsList);
+                    if (residentsList.length > 0) {
+                        setSelectedResidentUid(residentsList[0].id);
+                    }
+                },
+                (err) => console.error("Residents list listener error:", err)
+            );
+        } else {
+            setResidents([]);
+        }
+
+        // Private Documents listener should only be active for non-anonymous users.
+        // The check for `userRole !== "anonymous"` handles this.
+        if (isLoggedIn && userRole !== "anonymous") {
+            if (userRole === "resident" && auth?.currentUser?.uid) {
+                const privateDocsPath = `${usersPath}/${auth.currentUser.uid}/privateDocuments`;
+                unsubPrivateDocs = onSnapshot(
+                    query(collection(db, privateDocsPath), orderBy("createdAt", "desc")),
+                    (snap) => setPrivateDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+                    (err) => console.error("Private Documents listener error:", err)
+                );
+            } else if (isManager) {
+                // This is the collectionGroup query. Your rules and a composite index should be in place.
+                unsubPrivateDocs = onSnapshot(
+                    query(collectionGroup(db, 'privateDocuments'), orderBy("createdAt", "desc")),
+                    (snap) => setPrivateDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+                    (err) => console.error("Private Documents listener error:", err)
+                );
+            }
+        } else {
+            setPrivateDocuments([]);
+        }
+
+    } catch (err) {
+        console.error("Error setting up Firestore listeners:", err);
+    }
+    
+    return () => {
+        unsubAnnouncements();
+        unsubPqrs();
+        unsubDocs();
+        unsubResidents();
+        unsubPrivateDocs();
+    };
+}, [db, isAuthReady, appId, isLoggedIn, isManager, auth, userRole]);
 
   const handleRegister = async (e) => {
     e.preventDefault();
