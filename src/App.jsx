@@ -470,8 +470,7 @@ export default function App() {
           (err) => console.error("Private Documents listener error:", err)
         );
       } else if (isManager) {
-        // For managers, use a simple collection group query
-        // The security rules will handle the permissions
+        // Manager's view: Listen to all private documents for all users
         unsubPrivateDocs = onSnapshot(
           query(collectionGroup(db, 'privateDocuments'), orderBy("createdAt", "desc")),
           (snap) => setPrivateDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
