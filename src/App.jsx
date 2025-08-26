@@ -304,7 +304,6 @@ export default function App() {
   const [userApartment, setUserApartment] = useState(null);
   const [residents, setResidents] = useState([]);
   const [privateDocuments, setPrivateDocuments] = useState([]);
-  const [privateFolderPath, setPrivateFolderPath] = useState("");
   const [selectedResidentUid, setSelectedResidentUid] = useState("");
   const [selectedPrivateFiles, setSelectedPrivateFiles] = useState([]);
   const [selectedFileNames, setSelectedFileNames] = useState([]);
@@ -338,6 +337,7 @@ export default function App() {
   const pqrBodyRef = React.useRef(null);
   const documentNameRef = React.useRef(null);
   const documentUrlRef = React.useRef(null);
+  const privateFolderPathRef = React.useRef(null);
 
   useEffect(() => {
     (async () => {
@@ -419,18 +419,18 @@ export default function App() {
 
   useEffect(() => {
     if (!db || !isAuthReady) return;
-  
+    
     const announcementsPath = `artifacts/${appId}/public/data/announcements`;
     const pqrsPath = `artifacts/${appId}/public/data/pqrs`;
     const documentsPath = `artifacts/${appId}/public/data/documents`;
     const usersPath = `artifacts/${appId}/public/data/users`;
-  
+    
     let unsubAnnouncements = () => {};
     let unsubPqrs = () => {};
     let unsubDocs = () => {};
     let unsubPrivateDocs = () => {};
     let unsubResidents = () => {};
-  
+    
     try {
       unsubAnnouncements = onSnapshot(
         query(collection(db, announcementsPath), orderBy("createdAt", "desc")),
@@ -439,7 +439,7 @@ export default function App() {
         },
         (err) => console.error("Announcements listener error:", err)
       );
-  
+      
       if (isManager) {
         unsubPqrs = onSnapshot(
           query(collection(db, pqrsPath), orderBy("createdAt", "desc")),
@@ -461,7 +461,7 @@ export default function App() {
         (snap) => setDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
         (err) => console.error("Documents listener error:", err)
       );
-  
+      
       if (userRole === "resident" && auth?.currentUser?.uid) {
         const privateDocsPath = `${usersPath}/${auth.currentUser.uid}/privateDocuments`;
         unsubPrivateDocs = onSnapshot(
@@ -480,7 +480,7 @@ export default function App() {
       } else {
         setPrivateDocuments([]);
       }
-  
+      
       if (isManager) {
         unsubResidents = onSnapshot(
           query(collection(db, usersPath), where("isManager", "==", false)),
@@ -496,11 +496,11 @@ export default function App() {
       } else {
         setResidents([]);
       }
-  
+    
     } catch (err) {
       console.error("Error setting up Firestore listeners:", err);
     }
-  
+    
     return () => {
       unsubAnnouncements();
       unsubPqrs();
@@ -576,6 +576,9 @@ export default function App() {
   const handleUploadPrivateFiles = async (e) => {
     e.preventDefault();
     
+    // Get the folder path value from the ref
+    const folderPath = privateFolderPathRef.current?.value?.trim() || "";
+    
     // Validate form input
     if (!selectedResidentUid || selectedPrivateFiles.length === 0) {
       setErrorMsg("Please select a resident and at least one file.");
@@ -586,7 +589,6 @@ export default function App() {
     setErrorMsg("");
 
     const file = selectedPrivateFiles[0];
-    const folderPath = privateFolderPath.trim() || "";
     const privateDocsCollection = collection(db, `artifacts/${appId}/public/data/users/${selectedResidentUid}/privateDocuments`);
     
     try {
@@ -594,7 +596,7 @@ export default function App() {
       formData.append('file', file);
       // CORRECTED: Pass the filename from the file object
       formData.append('fileName', file.name);
-      // CORRECTED: Use the folderPath from the state value
+      // CORRECTED: Use the folderPath from the ref value
       formData.append('folderPath', folderPath);
       // CORRECTED: Use the selectedResidentUid state value
       formData.append('residentUid', selectedResidentUid);
@@ -622,7 +624,7 @@ export default function App() {
       setShowModal(null);
       setSelectedPrivateFiles([]);
       setSelectedFileNames([]);
-      setPrivateFolderPath(""); // Reset folder path state
+      privateFolderPathRef.current.value = ""; // Reset the ref value
     } catch (err) {
       console.error("Error uploading private file:", err);
       setErrorMsg(`Failed to upload private file: ${err.message}`);
@@ -1645,7 +1647,7 @@ export default function App() {
         {isManager && showModal === "upload_private_doc" && (
           <Modal
             title={t.modal.uploadPrivate}
-            onClose={() => { setShowModal(null); setSelectedPrivateFiles([]); setSelectedFileNames([]); setPrivateFolderPath(""); }}
+            onClose={() => { setShowModal(null); setSelectedPrivateFiles([]); setSelectedFileNames([]); if (privateFolderPathRef.current) privateFolderPathRef.current.value = ""; }}
           >
             <form onSubmit={handleUploadPrivateFiles} className="space-y-4">
               <div>
@@ -1671,8 +1673,7 @@ export default function App() {
                 <label className="block text-sm font-medium mb-1">{t.modal.folderPath}</label>
                 <input
                   type="text"
-                  value={privateFolderPath} // Correct usage with state
-                  onChange={(e) => setPrivateFolderPath(e.target.value)} // Correct usage with state
+                  ref={privateFolderPathRef} // Use the ref here
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder={t.modal.folderPathPlaceholder}
                 />
@@ -1703,7 +1704,7 @@ export default function App() {
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => { setShowModal(null); setSelectedPrivateFiles([]); setSelectedFileNames([]); setPrivateFolderPath(""); }}
+                  onClick={() => { setShowModal(null); setSelectedPrivateFiles([]); setSelectedFileNames([]); if (privateFolderPathRef.current) privateFolderPathRef.current.value = ""; }}
                   className="bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
                 >
                   {t.modal.cancel}
