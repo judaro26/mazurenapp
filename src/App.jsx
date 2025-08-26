@@ -79,7 +79,7 @@ const translations = {
       pqrPlaceholder: "e.g., Noise complaint from unit 10B",
       pqrBodyPlaceholder:
         "e.g., The residents of unit 10B have been playing loud music...",
-      submit: "Submit",
+      submit: "Enviar",
       documentName: "Document Name",
       documentNamePlaceholder: "e.g., 2024 Annual Budget",
       documentUrl: "Document URL",
@@ -361,35 +361,37 @@ export default function App() {
               setIsLoggedIn(true);
               setUserEmail(user.email || null);
               
-              // Determine user role and fetch profile if not anonymous
               if (user.isAnonymous) {
                 setIsManager(false);
                 setUserRole("anonymous");
                 setUserApartment(null);
+                setIsAuthReady(true);
+                setLoading(false);
               } else {
+                const idTokenResult = await user.getIdTokenResult(true);
+                const isManagerStatus = idTokenResult.claims?.isManager === true;
+                setIsManager(isManagerStatus);
+                setUserRole(isManagerStatus ? "manager" : "resident");
+
                 const userDocRef = doc(dbInstance, `artifacts/${appId}/public/data/users`, user.uid);
                 const snap = await getDoc(userDocRef);
                 if (snap.exists()) {
                   const userData = snap.data();
-                  const isManagerStatus = Boolean(userData?.isManager);
-                  setIsManager(isManagerStatus);
-                  setUserRole(isManagerStatus ? "manager" : "resident");
                   setUserApartment(userData.apartment || null);
                 } else {
                   await setDoc(userDocRef, { 
-                    isManager: false, 
+                    isManager: isManagerStatus, 
                     email: user.email || null,
                     name: null,
                     apartment: null,
                     phone: null
                   });
-                  setIsManager(false);
-                  setUserRole("resident");
                   setUserApartment(null);
                 }
+
+                setIsAuthReady(true);
+                setLoading(false);
               }
-              setIsAuthReady(true);
-              setLoading(false);
             } else {
               setUserIdentifier(null);
               setIsLoggedIn(false);
@@ -432,7 +434,6 @@ export default function App() {
     let unsubResidents = () => {};
     
     try {
-        // This listener is for announcements which are publicly readable, so it's safe to run immediately.
         unsubAnnouncements = onSnapshot(
             query(collection(db, announcementsPath), orderBy("createdAt", "desc")),
             (snap) => {
@@ -441,16 +442,13 @@ export default function App() {
             (err) => console.error("Announcements listener error:", err)
         );
 
-        // This listener is for documents which are publicly readable, so it's safe to run immediately.
         unsubDocs = onSnapshot(
             query(collection(db, documentsPath), orderBy("createdAt", "desc")),
             (snap) => setDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
             (err) => console.error("Documents listener error:", err)
         );
 
-        // All other listeners require a known user role, so they are placed in this block.
-        if (isLoggedIn && userRole) {
-            // PQRs listener should only be active for non-anonymous users (managers and residents).
+        if (userRole) {
             if (userRole === "manager") {
                 unsubPqrs = onSnapshot(
                     query(collection(db, pqrsPath), orderBy("createdAt", "desc")),
@@ -467,7 +465,6 @@ export default function App() {
                 setPqrs([]);
             }
     
-            // Residents list listener should only be active for managers.
             if (userRole === "manager") {
                 unsubResidents = onSnapshot(
                     query(collection(db, usersPath), where("isManager", "==", false)),
@@ -484,7 +481,6 @@ export default function App() {
                 setResidents([]);
             }
     
-            // Private Documents listener should only be active for non-anonymous users.
             if (userRole === "resident" && auth?.currentUser?.uid) {
                 const privateDocsPath = `${usersPath}/${auth.currentUser.uid}/privateDocuments`;
                 unsubPrivateDocs = onSnapshot(
@@ -493,7 +489,6 @@ export default function App() {
                     (err) => console.error("Private Documents listener error:", err)
                 );
             } else if (userRole === "manager") {
-                // This is the collectionGroup query. Your rules and a composite index should be in place.
                 unsubPrivateDocs = onSnapshot(
                     query(collectionGroup(db, 'privateDocuments'), orderBy("createdAt", "desc")),
                     (snap) => setPrivateDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
@@ -503,7 +498,6 @@ export default function App() {
                 setPrivateDocuments([]);
             }
         } else {
-            // Reset state for sensitive data if user role is not determined or not valid
             setPqrs([]);
             setResidents([]);
             setPrivateDocuments([]);
@@ -795,6 +789,8 @@ export default function App() {
     }
     try {
       await signInWithEmailAndPassword(auth, email, password);
+      // Force token refresh after login to get custom claims
+      await auth.currentUser.getIdTokenResult(true);
     } catch (err) {
       console.error("Login failed:", err);
       setLoginError(t.login.invalidCredentials);
