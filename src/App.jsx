@@ -22,7 +22,7 @@ import {
   updateDoc,
   deleteDoc,
   where,
-  collectionGroup, // Import collectionGroup
+  collectionGroup,
 } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
@@ -440,60 +440,55 @@ export default function App() {
         (err) => console.error("Announcements listener error:", err)
       );
 
-      if (isManager) {
-        unsubPqrs = onSnapshot(
-          query(collection(db, pqrsPath), orderBy("createdAt", "desc")),
-          (snap) => setPqrs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-          (err) => console.error("PQRs listener error:", err)
-        );
-      } else if (auth?.currentUser?.uid) {
-        unsubPqrs = onSnapshot(
-          query(collection(db, pqrsPath), where("authorId", "==", auth.currentUser.uid), orderBy("createdAt", "desc")),
-          (snap) => setPqrs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-          (err) => console.error("PQRs listener error:", err)
-        );
-      } else {
-        setPqrs([]);
-      }
-      
       unsubDocs = onSnapshot(
         query(collection(db, documentsPath), orderBy("createdAt", "desc")),
         (snap) => setDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
         (err) => console.error("Documents listener error:", err)
       );
 
-      if (userRole === "resident" && auth?.currentUser?.uid) {
-        const privateDocsPath = `${usersPath}/${auth.currentUser.uid}/privateDocuments`;
-        unsubPrivateDocs = onSnapshot(
-          query(collection(db, privateDocsPath), orderBy("createdAt", "desc")),
-          (snap) => setPrivateDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-          (err) => console.error("Private Documents listener error:", err)
-        );
-      } else if (isManager) {
-        // Manager view: listen to all private documents via a collection group query
-        unsubPrivateDocs = onSnapshot(
-          query(collectionGroup(db, 'privateDocuments'), orderBy("createdAt", "desc")),
-          (snap) => setPrivateDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-          (err) => console.error("Private Documents listener error:", err)
-        );
-      } else {
-        setPrivateDocuments([]);
-      }
+      // Only set up these listeners if the user is authenticated AND their role is determined
+      if (isLoggedIn) {
+        if (isManager) {
+          unsubPqrs = onSnapshot(
+            query(collection(db, pqrsPath), orderBy("createdAt", "desc")),
+            (snap) => setPqrs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+            (err) => console.error("PQRs listener error:", err)
+          );
+          
+          unsubPrivateDocs = onSnapshot(
+            query(collectionGroup(db, 'privateDocuments'), orderBy("createdAt", "desc")),
+            (snap) => setPrivateDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+            (err) => console.error("Private Documents listener error:", err)
+          );
 
-      if (isManager) {
-        unsubResidents = onSnapshot(
-          query(collection(db, usersPath), where("isManager", "==", false)),
-          (snap) => {
-            const residentsList = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-            setResidents(residentsList);
-            if (residentsList.length > 0) {
-              setSelectedResidentUid(residentsList[0].id);
-            }
-          },
-          (err) => console.error("Residents list listener error:", err)
-        );
-      } else {
-        setResidents([]);
+          unsubResidents = onSnapshot(
+            query(collection(db, usersPath), where("isManager", "==", false)),
+            (snap) => {
+              const residentsList = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+              setResidents(residentsList);
+              if (residentsList.length > 0) {
+                setSelectedResidentUid(residentsList[0].id);
+              }
+            },
+            (err) => console.error("Residents list listener error:", err)
+          );
+        } else if (auth?.currentUser?.uid) { // Resident user
+          unsubPqrs = onSnapshot(
+            query(collection(db, pqrsPath), where("authorId", "==", auth.currentUser.uid), orderBy("createdAt", "desc")),
+            (snap) => setPqrs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+            (err) => console.error("PQRs listener error:", err)
+          );
+          
+          const privateDocsPath = `${usersPath}/${auth.currentUser.uid}/privateDocuments`;
+          unsubPrivateDocs = onSnapshot(
+            query(collection(db, privateDocsPath), orderBy("createdAt", "desc")),
+            (snap) => setPrivateDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+            (err) => console.error("Private Documents listener error:", err)
+          );
+        } else { // Anonymous user
+          setPqrs([]);
+          setPrivateDocuments([]);
+        }
       }
 
     } catch (err) {
@@ -586,17 +581,15 @@ export default function App() {
 
     const file = selectedPrivateFiles[0];
     const folderPath = privateFolderPath.trim() || "";
-    const privateDocsCollection = collection(db, `artifacts/${appId}/public/data/users/${selectedResidentUid}/privateDocuments`);
     
     try {
       const formData = new FormData();
       formData.append('file', file);
-      // CORRECTED: Pass the filename from the file object
       formData.append('fileName', file.name);
-      // CORRECTED: Use the folderPath from the state value
       formData.append('folderPath', folderPath);
-      // CORRECTED: Use the selectedResidentUid state value
       formData.append('residentUid', selectedResidentUid);
+      formData.append('appId', appId);
+      formData.append('userIdentifier', userIdentifier);
       
       const response = await fetch('/.netlify/functions/uploadToGcs', {
         method: 'POST',
@@ -610,18 +603,13 @@ export default function App() {
 
       const result = await response.json();
       
-      await addDoc(privateDocsCollection, {
-        fileName: file.name,
-        folder: folderPath,
-        url: result.fileUrl,
-        uploadedBy: userIdentifier,
-        createdAt: serverTimestamp(),
-      });
-
+      // Removed the Firestore document creation from the client-side
+      // as it's now handled by the Netlify function.
+      
       setShowModal(null);
       setSelectedPrivateFiles([]);
       setSelectedFileNames([]);
-      setPrivateFolderPath(""); // Reset folder path state
+      setPrivateFolderPath("");
     } catch (err) {
       console.error("Error uploading private file:", err);
       setErrorMsg(`Failed to upload private file: ${err.message}`);
@@ -692,8 +680,6 @@ export default function App() {
 
     try {
       if (pqrFile) {
-        // CORRECTED: Use dynamic import to get storage functions
-        const { getStorage, ref, uploadBytes, getDownloadURL } = await import("firebase/storage");
         const storage = getStorage(app);
         const storagePath = `pqrs/${auth.currentUser.uid}-${Date.now()}-${pqrFile.name}`;
         const fileRef = ref(storage, storagePath);
@@ -1670,8 +1656,8 @@ export default function App() {
                 <label className="block text-sm font-medium mb-1">{t.modal.folderPath}</label>
                 <input
                   type="text"
-                  value={privateFolderPath} // Correct usage with state
-                  onChange={(e) => setPrivateFolderPath(e.target.value)} // Correct usage with state
+                  value={privateFolderPath}
+                  onChange={(e) => setPrivateFolderPath(e.target.value)}
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder={t.modal.folderPathPlaceholder}
                 />
