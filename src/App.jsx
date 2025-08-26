@@ -368,27 +368,61 @@ export default function App() {
                 setIsAuthReady(true);
                 setLoading(false);
               } else {
-                const idTokenResult = await user.getIdTokenResult(true);
-                const isManagerStatus = idTokenResult.claims?.isManager === true;
-                setIsManager(isManagerStatus);
-                setUserRole(isManagerStatus ? "manager" : "resident");
-
-                const userDocRef = doc(dbInstance, `artifacts/${appId}/public/data/users`, user.uid);
-                const snap = await getDoc(userDocRef);
-                if (snap.exists()) {
-                  const userData = snap.data();
-                  setUserApartment(userData.apartment || null);
-                } else {
-                  await setDoc(userDocRef, { 
-                    isManager: isManagerStatus, 
-                    email: user.email || null,
-                    name: null,
-                    apartment: null,
-                    phone: null
-                  });
-                  setUserApartment(null);
+                // Force refresh the ID token to ensure we have the latest claims
+                try {
+                  await user.getIdToken(true); // Force refresh
+                  const idTokenResult = await user.getIdTokenResult();
+                  const isManagerStatus = idTokenResult.claims?.isManager === true;
+                  
+                  console.log("Custom claims from token:", idTokenResult.claims);
+                  console.log("isManager from claims:", isManagerStatus);
+        
+                  const userDocRef = doc(dbInstance, `artifacts/${appId}/public/data/users`, user.uid);
+                  const snap = await getDoc(userDocRef);
+                  
+                  let finalIsManagerStatus = isManagerStatus;
+                  
+                  if (snap.exists()) {
+                    const userData = snap.data();
+                    setUserApartment(userData.apartment || null);
+                    
+                    // Use Firestore value if custom claim check fails
+                    if (userData.isManager !== undefined) {
+                      finalIsManagerStatus = userData.isManager;
+                      console.log("Using Firestore isManager value:", finalIsManagerStatus);
+                    }
+                  } else {
+                    await setDoc(userDocRef, { 
+                      isManager: isManagerStatus, 
+                      email: user.email || null,
+                      name: null,
+                      apartment: null,
+                      phone: null
+                    });
+                    setUserApartment(null);
+                  }
+        
+                  setIsManager(finalIsManagerStatus);
+                  setUserRole(finalIsManagerStatus ? "manager" : "resident");
+                  console.log("Final user role:", finalIsManagerStatus ? "manager" : "resident");
+        
+                } catch (tokenError) {
+                  console.error("Error getting ID token:", tokenError);
+                  // Fallback to checking Firestore directly
+                  const userDocRef = doc(dbInstance, `artifacts/${appId}/public/data/users`, user.uid);
+                  const snap = await getDoc(userDocRef);
+                  
+                  let isManagerStatus = false;
+                  if (snap.exists()) {
+                    const userData = snap.data();
+                    isManagerStatus = userData.isManager === true;
+                    setUserApartment(userData.apartment || null);
+                  }
+                  
+                  setIsManager(isManagerStatus);
+                  setUserRole(isManagerStatus ? "manager" : "resident");
                 }
-
+        
                 setIsAuthReady(true);
                 setLoading(false);
               }
@@ -408,16 +442,6 @@ export default function App() {
             setLoading(false);
           }
         });
-
-        return () => unsub();
-      } catch (err) {
-        console.error("Error initializing Firebase:", err);
-        setErrorMsg("Failed to initialize Firebase.");
-        setLoading(false);
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   useEffect(() => {
     if (!db || !isAuthReady) return;
@@ -790,7 +814,7 @@ export default function App() {
     try {
       await signInWithEmailAndPassword(auth, email, password);
       // Force token refresh after login to get custom claims
-      await auth.currentUser.getIdTokenResult(true);
+      await auth.currentUser.getIdTokenResult(true); // This line is correct
     } catch (err) {
       console.error("Login failed:", err);
       setLoginError(t.login.invalidCredentials);
