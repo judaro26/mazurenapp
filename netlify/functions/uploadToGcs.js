@@ -1,8 +1,26 @@
 const { Storage } = require('@google-cloud/storage');
 const Busboy = require('busboy');
 const stream = require('stream');
+const admin = require('firebase-admin');
 
-exports.handler = async (event, context) => {
+// Initialize Firebase Admin SDK
+let isFirebaseInitialized = false;
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  try {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    if (!admin.apps.length) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        databaseURL: `https://${serviceAccount.projectId}.firebaseio.com`,
+      });
+      isFirebaseInitialized = true;
+    }
+  } catch (error) {
+    console.error('Failed to initialize Firebase Admin SDK:', error);
+  }
+}
+
+exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
@@ -11,6 +29,12 @@ exports.handler = async (event, context) => {
     return { statusCode: 500, body: 'Missing Google Cloud credentials.' };
   }
 
+  if (!isFirebaseInitialized) {
+    return { statusCode: 500, body: 'Firebase Admin SDK not initialized.' };
+  }
+
+  const db = admin.firestore();
+  
   const storage = new Storage({
     projectId: 'portalmalaga-470004',
     credentials: JSON.parse(process.env.GOOGLE_CLOUD_CREDENTIALS),
@@ -29,7 +53,6 @@ exports.handler = async (event, context) => {
     });
 
     busboy.on('file', (fieldname, file, filenameInfo) => {
-      // Create a buffer to hold the file data in memory
       const fileBuffer = [];
       file.on('data', (data) => {
         fileBuffer.push(data);
@@ -51,8 +74,10 @@ exports.handler = async (event, context) => {
           });
         }
         
+        const appId = fields.appId || 'default-app-id';
         const residentUid = fields.residentUid || 'unknown';
         const folderPath = fields.folderPath || '';
+        const userIdentifier = fields.userIdentifier || 'unknown';
         
         // Build the file path
         const finalFileName = folderPath ? `${folderPath}${fileData.filename}` : fileData.filename;
@@ -78,6 +103,16 @@ exports.handler = async (event, context) => {
 
         const publicUrl = `https://storage.googleapis.com/${bucketName}/${encodeURIComponent(filePath)}`;
         
+        // Save document metadata to Firestore
+        const docRef = db.collection(`artifacts/${appId}/public/data/users/${residentUid}/privateDocuments`);
+        await docRef.add({
+          fileName: fileData.filename,
+          folder: folderPath,
+          url: publicUrl,
+          uploadedBy: userIdentifier,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        
         resolve({
           statusCode: 200,
           body: JSON.stringify({ fileUrl: publicUrl }),
@@ -99,7 +134,6 @@ exports.handler = async (event, context) => {
       });
     });
 
-    // You need to correctly decode the body
     busboy.end(Buffer.from(event.body, 'base64'));
   });
 };
