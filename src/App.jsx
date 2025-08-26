@@ -419,18 +419,18 @@ export default function App() {
 
   useEffect(() => {
     if (!db || !isAuthReady) return;
-
+  
     const announcementsPath = `artifacts/${appId}/public/data/announcements`;
     const pqrsPath = `artifacts/${appId}/public/data/pqrs`;
     const documentsPath = `artifacts/${appId}/public/data/documents`;
     const usersPath = `artifacts/${appId}/public/data/users`;
-
+  
     let unsubAnnouncements = () => {};
     let unsubPqrs = () => {};
     let unsubDocs = () => {};
     let unsubPrivateDocs = () => {};
     let unsubResidents = () => {};
-
+  
     try {
       unsubAnnouncements = onSnapshot(
         query(collection(db, announcementsPath), orderBy("createdAt", "desc")),
@@ -439,7 +439,7 @@ export default function App() {
         },
         (err) => console.error("Announcements listener error:", err)
       );
-
+  
       if (isManager) {
         unsubPqrs = onSnapshot(
           query(collection(db, pqrsPath), orderBy("createdAt", "desc")),
@@ -461,7 +461,7 @@ export default function App() {
         (snap) => setDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
         (err) => console.error("Documents listener error:", err)
       );
-
+  
       if (userRole === "resident" && auth?.currentUser?.uid) {
         const privateDocsPath = `${usersPath}/${auth.currentUser.uid}/privateDocuments`;
         unsubPrivateDocs = onSnapshot(
@@ -470,16 +470,23 @@ export default function App() {
           (err) => console.error("Private Documents listener error:", err)
         );
       } else if (isManager) {
-        // Manager view: listen to all private documents via a collection group query
+        // Manager view: Modified collection group query with appId constraints
+        const privateDocsQuery = query(
+          collectionGroup(db, 'privateDocuments'),
+          where('__name__', '>=', `artifacts/${appId}/`),
+          where('__name__', '<=', `artifacts/${appId}/~`),
+          orderBy("createdAt", "desc")
+        );
+        
         unsubPrivateDocs = onSnapshot(
-          query(collectionGroup(db, 'privateDocuments'), orderBy("createdAt", "desc")),
+          privateDocsQuery,
           (snap) => setPrivateDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
           (err) => console.error("Private Documents listener error:", err)
         );
       } else {
         setPrivateDocuments([]);
       }
-
+  
       if (isManager) {
         unsubResidents = onSnapshot(
           query(collection(db, usersPath), where("isManager", "==", false)),
@@ -495,11 +502,11 @@ export default function App() {
       } else {
         setResidents([]);
       }
-
+  
     } catch (err) {
       console.error("Error setting up Firestore listeners:", err);
     }
-
+  
     return () => {
       unsubAnnouncements();
       unsubPqrs();
