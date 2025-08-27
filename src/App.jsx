@@ -470,10 +470,10 @@ export default function App() {
           (err) => console.error("Private Documents listener error:", err)
         );
       } else if (isManager) {
-        // CORRECTED: Use a simple collection group query.
-        // The Firestore rules handle the security and filtering by `appId`.
+        // CORRECTED: Added a 'where' clause for the manager to securely query private docs.
         const privateDocsQuery = query(
           collectionGroup(db, 'privateDocuments'),
+          where("appId", "==", appId), // New line: filter by appId
           orderBy("createdAt", "desc")
         );
         
@@ -592,17 +592,17 @@ export default function App() {
 
     const file = selectedPrivateFiles[0];
     const folderPath = privateFolderPath.trim() || "";
-    const privateDocsCollection = collection(db, `artifacts/${appId}/public/data/users/${selectedResidentUid}/privateDocuments`);
+    
+    // The privateDocsCollection is not used here, as the serverless function handles the Firestore write
+    // const privateDocsCollection = collection(db, `artifacts/${appId}/public/data/users/${selectedResidentUid}/privateDocuments`);
     
     try {
       const formData = new FormData();
       formData.append('file', file);
-      // CORRECTED: Pass the filename from the file object
       formData.append('fileName', file.name);
-      // CORRECTED: Use the folderPath from the state value
       formData.append('folderPath', folderPath);
-      // CORRECTED: Use the selectedResidentUid state value
       formData.append('residentUid', selectedResidentUid);
+      formData.append('appId', appId); // NEW LINE: Pass the appId to the serverless function
       
       const response = await fetch('/.netlify/functions/uploadToGcs', {
         method: 'POST',
@@ -616,14 +616,8 @@ export default function App() {
 
       const result = await response.json();
       
-      await addDoc(privateDocsCollection, {
-        fileName: file.name,
-        folder: folderPath,
-        url: result.fileUrl,
-        uploadedBy: userIdentifier,
-        createdAt: serverTimestamp(),
-      });
-
+      // Removed the duplicate Firestore write. The serverless function now handles it.
+      
       setShowModal(null);
       setSelectedPrivateFiles([]);
       setSelectedFileNames([]);
