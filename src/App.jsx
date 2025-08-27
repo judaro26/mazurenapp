@@ -22,10 +22,9 @@ import {
   updateDoc,
   deleteDoc,
   where,
-  collectionGroup,
+  collectionGroup, // Import collectionGroup
 } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { getFunctions, httpsCallable } from "firebase/functions";
 
 /**
  * ----------------------------------------------
@@ -80,7 +79,7 @@ const translations = {
       pqrPlaceholder: "e.g., Noise complaint from unit 10B",
       pqrBodyPlaceholder:
         "e.g., The residents of unit 10B have been playing loud music...",
-      submit: "Submit",
+      submit: "Enviar",
       documentName: "Document Name",
       documentNamePlaceholder: "e.g., 2024 Annual Budget",
       documentUrl: "Document URL",
@@ -91,7 +90,7 @@ const translations = {
       file: "File (optional)",
       selectResident: "Select Resident",
       folderPath: "Folder/File Directory (optional)",
-      folderPathPlaceholder: "e.g., financials/2024_reports",
+      folderPathPlaceholder: "e.g., financials/2024_reports"
     },
     loading: "Loading...",
     login: {
@@ -113,7 +112,7 @@ const translations = {
       managerLogin: "Manager Login",
       roleManager: "Manager",
       roleResident: "Resident",
-      roleAnonymous: "Anonymous User",
+      roleAnonymous: "Anonymous User"
     },
     configMissing: {
       title: "Missing Firebase configuration",
@@ -122,10 +121,10 @@ const translations = {
       how: "How to fix",
       opt1Title: "Option A: Inject __firebase_config",
       opt1Desc:
-        "Add a <script> before your bundle that defines window.__firebase_config = {...}.",
-      opt2Title: "Option B: Environment variables on Netlify",
+        "Agregue un <script> antes de su bundle que defina window.__firebase_config = {...}.",
+      opt2Title: "Opción B: Variables de entorno en Netlify",
       opt2Desc:
-        "Set REACT_APP_FIREBASE_* variables in Site settings → Build & deploy → Environment. Then redeploy.",
+        "Configure las variables REACT_APP_FIREBASE_* en Site settings → Build & deploy → Environment. Luego vuelva a desplegar.",
       required: "Required keys: apiKey, authDomain, projectId, appId",
     },
   },
@@ -187,7 +186,7 @@ const translations = {
       file: "Archivo (opcional)",
       selectResident: "Seleccionar Residente",
       folderPath: "Directorio de Carpeta/Archivo (opcional)",
-      folderPathPlaceholder: "ej., finanzas/informes_2024",
+      folderPathPlaceholder: "ej., finanzas/informes_2024"
     },
     loading: "Cargando...",
     login: {
@@ -210,7 +209,7 @@ const translations = {
       managerLogin: "Iniciar sesión como administrador",
       roleManager: "Administrador",
       roleResident: "Residente",
-      roleAnonymous: "Usuario anónimo",
+      roleAnonymous: "Usuario anónimo"
     },
     configMissing: {
       title: "Falta la configuración de Firebase",
@@ -249,7 +248,7 @@ function loadFirebaseConfig() {
     apiKey: import.meta.env.VITE_APP_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_APP_FIREBASE_AUTH_DOMAIN,
     projectId: import.meta.env.VITE_APP_FIREBASE_PROJECT_ID,
-    storageBucket: "portalmalaga-bad62.appspot.com",
+    storageBucket: 'portalmalaga-bad62.appspot.com',
     messagingSenderId: import.meta.env.VITE_APP_FIREBASE_MESSAGING_SENDER_ID,
     appId: import.meta.env.VITE_APP_FIREBASE_APP_ID,
   };
@@ -339,7 +338,6 @@ export default function App() {
   const documentNameRef = React.useRef(null);
   const documentUrlRef = React.useRef(null);
   const privateFolderPathRef = React.useRef(null);
-  const setRoleEmailRef = React.useRef(null);
 
   useEffect(() => {
     (async () => {
@@ -357,61 +355,165 @@ export default function App() {
         setDb(dbInstance);
 
         const unsub = onAuthStateChanged(authInstance, async (user) => {
-          if (user) {
-            setUserIdentifier(user.uid);
-            setIsLoggedIn(true);
-            setUserEmail(user.email || null);
-            
-            if (user.isAnonymous) {
-              setIsManager(false);
-              setUserRole("anonymous");
-              setUserApartment(null);
-            } else {
-              // Fetch the latest token, ensuring custom claims are up-to-date
-              const idTokenResult = await user.getIdTokenResult(true);
-              const isManagerStatus = idTokenResult.claims?.isManager === true;
-
-              const userDocRef = doc(dbInstance, `artifacts/${appId}/public/data/users`, user.uid);
-              const snap = await getDoc(userDocRef);
+          try {
+            if (user) {
+              setUserIdentifier(user.uid);
+              setIsLoggedIn(true);
+              setUserEmail(user.email || null);
               
-              if (snap.exists()) {
-                const userData = snap.data();
-                setUserApartment(userData.apartment || null);
-              } else {
-                await setDoc(userDocRef, {
-                  isManager: isManagerStatus,
-                  email: user.email || null,
-                  name: null,
-                  apartment: null,
-                  phone: null
-                });
+              if (user.isAnonymous) {
+                setIsManager(false);
+                setUserRole("anonymous");
                 setUserApartment(null);
-              }
+                setIsAuthReady(true);
+                setLoading(false);
+              } else {
+                const idTokenResult = await user.getIdTokenResult(true);
+                const isManagerStatus = idTokenResult.claims?.isManager === true;
+                setIsManager(isManagerStatus);
+                setUserRole(isManagerStatus ? "manager" : "resident");
 
-              setIsManager(isManagerStatus);
-              setUserRole(isManagerStatus ? "manager" : "resident");
-              console.log("onAuthStateChanged - Final user role:", isManagerStatus ? "manager" : "resident");
+                const userDocRef = doc(dbInstance, `artifacts/${appId}/public/data/users`, user.uid);
+                const snap = await getDoc(userDocRef);
+                if (snap.exists()) {
+                  const userData = snap.data();
+                  setUserApartment(userData.apartment || null);
+                } else {
+                  await setDoc(userDocRef, { 
+                    isManager: isManagerStatus, 
+                    email: user.email || null,
+                    name: null,
+                    apartment: null,
+                    phone: null
+                  });
+                  setUserApartment(null);
+                }
+
+                setIsAuthReady(true);
+                setLoading(false);
+              }
+            } else {
+              setUserIdentifier(null);
+              setIsLoggedIn(false);
+              setIsManager(false);
+              setUserRole(null);
+              setUserEmail(null);
+              setUserApartment(null);
+              setIsAuthReady(true);
+              setLoading(false);
             }
-          } else {
-            setUserIdentifier(null);
-            setIsLoggedIn(false);
-            setIsManager(false);
-            setUserRole(null);
-            setUserEmail(null);
-            setUserApartment(null);
+          } catch (err) {
+            console.error("Auth state change error:", err);
+            setErrorMsg("Failed to load user profile.");
+            setLoading(false);
           }
-          setIsAuthReady(true);
-          setLoading(false);
         });
 
         return () => unsub();
       } catch (err) {
-        console.error("Firebase initialization failed:", err);
-        setConfigError(true);
+        console.error("Error initializing Firebase:", err);
+        setErrorMsg("Failed to initialize Firebase.");
         setLoading(false);
       }
     })();
-  }, [firebaseConfig, appId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!db || !isAuthReady) return;
+    
+    const announcementsPath = `artifacts/${appId}/public/data/announcements`;
+    const pqrsPath = `artifacts/${appId}/public/data/pqrs`;
+    const documentsPath = `artifacts/${appId}/public/data/documents`;
+    const usersPath = `artifacts/${appId}/public/data/users`;
+    
+    let unsubAnnouncements = () => {};
+    let unsubPqrs = () => {};
+    let unsubDocs = () => {};
+    let unsubPrivateDocs = () => {};
+    let unsubResidents = () => {};
+    
+    try {
+        unsubAnnouncements = onSnapshot(
+            query(collection(db, announcementsPath), orderBy("createdAt", "desc")),
+            (snap) => {
+                setAnnouncements(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+            },
+            (err) => console.error("Announcements listener error:", err)
+        );
+
+        unsubDocs = onSnapshot(
+            query(collection(db, documentsPath), orderBy("createdAt", "desc")),
+            (snap) => setDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+            (err) => console.error("Documents listener error:", err)
+        );
+
+        if (userRole) {
+            if (userRole === "manager") {
+                unsubPqrs = onSnapshot(
+                    query(collection(db, pqrsPath), orderBy("createdAt", "desc")),
+                    (snap) => setPqrs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+                    (err) => console.error("PQRs listener error:", err)
+                );
+            } else if (userRole === "resident" && auth?.currentUser?.uid) {
+                unsubPqrs = onSnapshot(
+                    query(collection(db, pqrsPath), where("authorId", "==", auth.currentUser.uid), orderBy("createdAt", "desc")),
+                    (snap) => setPqrs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+                    (err) => console.error("PQRs listener error:", err)
+                );
+            } else {
+                setPqrs([]);
+            }
+    
+            if (userRole === "manager") {
+                unsubResidents = onSnapshot(
+                    query(collection(db, usersPath), where("isManager", "==", false)),
+                    (snap) => {
+                        const residentsList = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+                        setResidents(residentsList);
+                        if (residentsList.length > 0) {
+                            setSelectedResidentUid(residentsList[0].id);
+                        }
+                    },
+                    (err) => console.error("Residents list listener error:", err)
+                );
+            } else {
+                setResidents([]);
+            }
+    
+            if (userRole === "resident" && auth?.currentUser?.uid) {
+                const privateDocsPath = `${usersPath}/${auth.currentUser.uid}/privateDocuments`;
+                unsubPrivateDocs = onSnapshot(
+                    query(collection(db, privateDocsPath), orderBy("createdAt", "desc")),
+                    (snap) => setPrivateDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+                    (err) => console.error("Private Documents listener error:", err)
+                );
+            } else if (userRole === "manager") {
+                unsubPrivateDocs = onSnapshot(
+                    query(collectionGroup(db, 'privateDocuments'), orderBy("createdAt", "desc")),
+                    (snap) => setPrivateDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+                    (err) => console.error("Private Documents listener error:", err)
+                );
+            } else {
+                setPrivateDocuments([]);
+            }
+        } else {
+            setPqrs([]);
+            setResidents([]);
+            setPrivateDocuments([]);
+        }
+    } catch (err) {
+        console.error("Error setting up Firestore listeners:", err);
+    }
+    
+    return () => {
+        unsubAnnouncements();
+        unsubPqrs();
+        unsubDocs();
+        unsubResidents();
+        unsubPrivateDocs();
+    };
+}, [db, isAuthReady, appId, isLoggedIn, isManager, auth, userRole]);
 
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -434,12 +536,7 @@ export default function App() {
       });
 
       setShowRegisterForm(false);
-      // Automatically sign in the new user and get their fresh token
-      const userAfterLogin = (await signInWithEmailAndPassword(auth, registerEmail, registerPassword)).user;
-      const idTokenResult = await userAfterLogin.getIdTokenResult(true);
-      const isManagerStatus = idTokenResult.claims?.isManager === true;
-      setIsManager(isManagerStatus);
-      setUserRole(isManagerStatus ? "manager" : "resident");
+      await signInWithEmailAndPassword(auth, registerEmail, registerPassword);
     } catch (err) {
       console.error("Registration failed:", err);
       setRegisterError(err.message);
@@ -455,6 +552,10 @@ export default function App() {
 
     setUploading(true);
     let imageUrls = [];
+
+    // This section assumes that the user will not be uploading images for announcements since Firebase Storage
+    // is not being used directly. If you want this feature, you would need to implement it
+    // with a similar Netlify Function-based approach as the private file uploads.
 
     try {
       const path = `artifacts/${appId}/public/data/announcements`;
@@ -480,8 +581,10 @@ export default function App() {
   const handleUploadPrivateFiles = async (e) => {
     e.preventDefault();
     
+    // Get the folder path value from the ref
     const folderPath = privateFolderPathRef.current?.value?.trim() || "";
     
+    // Validate form input
     if (!selectedResidentUid || selectedPrivateFiles.length === 0) {
       setErrorMsg("Please select a resident and at least one file.");
       return;
@@ -496,8 +599,11 @@ export default function App() {
     try {
       const formData = new FormData();
       formData.append('file', file);
+      // CORRECTED: Pass the filename from the file object
       formData.append('fileName', file.name);
+      // CORRECTED: Use the folderPath from the ref value
       formData.append('folderPath', folderPath);
+      // CORRECTED: Use the selectedResidentUid state value
       formData.append('residentUid', selectedResidentUid);
       
       const response = await fetch('/.netlify/functions/uploadToGcs', {
@@ -523,7 +629,7 @@ export default function App() {
       setShowModal(null);
       setSelectedPrivateFiles([]);
       setSelectedFileNames([]);
-      privateFolderPathRef.current.value = "";
+      privateFolderPathRef.current.value = ""; // Reset the ref value
     } catch (err) {
       console.error("Error uploading private file:", err);
       setErrorMsg(`Failed to upload private file: ${err.message}`);
@@ -594,6 +700,7 @@ export default function App() {
 
     try {
       if (pqrFile) {
+        // CORRECTED: Use dynamic import to get storage functions
         const { getStorage, ref, uploadBytes, getDownloadURL } = await import("firebase/storage");
         const storage = getStorage(app);
         const storagePath = `pqrs/${auth.currentUser.uid}-${Date.now()}-${pqrFile.name}`;
@@ -680,32 +787,13 @@ export default function App() {
       setLoginError("Authentication service is not ready.");
       return;
     }
-    setLoading(true);
     try {
-      // Sign in the user
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-
-      // Force a token refresh immediately after a successful login
-      const idTokenResult = await user.getIdTokenResult(true);
-      const isManagerStatus = idTokenResult.claims?.isManager === true;
-
-      // Update state based on the fresh token claims
-      setUserIdentifier(user.uid);
-      setIsLoggedIn(true);
-      setUserEmail(user.email || null);
-      setIsManager(isManagerStatus);
-      setUserRole(isManagerStatus ? "manager" : "resident");
-      
-      console.log("Login successful. Custom claims from fresh token:", idTokenResult.claims);
-      console.log("Final user role after login:", isManagerStatus ? "manager" : "resident");
-
-      setLoginError("");
-      setLoading(false);
+      await signInWithEmailAndPassword(auth, email, password);
+      // Force token refresh after login to get custom claims
+      await auth.currentUser.getIdTokenResult(true);
     } catch (err) {
       console.error("Login failed:", err);
       setLoginError(t.login.invalidCredentials);
-      setLoading(false);
     }
   };
 
@@ -741,59 +829,6 @@ export default function App() {
     } catch (err) {
       console.error("Failed to update PQR status:", err);
       setErrorMsg("Couldn't update status.");
-    }
-  };
-
-  // NEW: Function to call the Netlify Function for role updates
-  const setManagerRole = async (targetEmail, isManagerStatus) => {
-    const auth = getAuth();
-    const currentUser = auth.currentUser;
-
-    if (!currentUser) {
-      console.error("User not authenticated.");
-      return;
-    }
-
-    setUploading(true);
-    setErrorMsg("");
-
-    try {
-      const idToken = await currentUser.getIdToken();
-
-      const response = await fetch('/.netlify/functions/setManagerRole', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`
-        },
-        body: JSON.stringify({ email: targetEmail, isManager: isManagerStatus }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update role.');
-      }
-
-      const result = await response.json();
-      console.log(result.result);
-
-      // Force a token refresh to get the updated custom claims
-      await currentUser.getIdToken(true);
-      console.log('ID token refreshed. New claims should now be available.');
-      
-      alert(`Role for ${targetEmail} updated successfully.`);
-
-      // Refresh the UI by getting the new claims
-      const idTokenResult = await currentUser.getIdTokenResult();
-      const newIsManagerStatus = idTokenResult.claims?.isManager === true;
-      setIsManager(newIsManagerStatus);
-      setUserRole(newIsManagerStatus ? "manager" : "resident");
-
-    } catch (error) {
-      console.error("Error setting manager role:", error);
-      setErrorMsg(error.message);
-    } finally {
-      setUploading(false);
     }
   };
 
@@ -1385,38 +1420,6 @@ export default function App() {
                 </button>
               </div>
               <p className="text-gray-500 italic">This is the manager's view of private file uploads.</p>
-              <ul className="space-y-4 mt-4">
-                {privateDocuments.length === 0 ? (
-                  <li className="text-gray-500 italic text-center py-4">{t.noPrivateDocs}</li>
-                ) : (
-                  privateDocuments.map((doc) => (
-                    <li
-                      key={doc.id}
-                      className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center relative"
-                    >
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold">{doc.fileName}</h3>
-                        <p className="text-sm text-gray-500">
-                          {t.modal.folderPath}: {doc.folder || "N/A"}
-                        </p>
-                        {doc.createdAt && (
-                          <p className="text-sm text-gray-400 mt-1">
-                            {t.uploaded} {formatTimestamp(doc.createdAt)}
-                          </p>
-                        )}
-                      </div>
-                      <a
-                        href={doc.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-2 sm:mt-0 bg-blue-100 text-blue-800 px-4 py-2 rounded-full font-semibold hover:bg-blue-200 transition-colors inline-block"
-                      >
-                        {t.viewDocument}
-                      </a>
-                    </li>
-                  ))
-                )}
-              </ul>
             </div>
           )}
 
@@ -1436,7 +1439,7 @@ export default function App() {
                       <div className="flex-1">
                         <h3 className="text-lg font-semibold">{doc.fileName}</h3>
                         <p className="text-sm text-gray-500">
-                          {t.modal.folderPath}: {doc.folder || "N/A"}
+                          {t.modal.folderPath}: {doc.folder}
                         </p>
                         {doc.createdAt && (
                           <p className="text-sm text-gray-400 mt-1">
@@ -1456,55 +1459,6 @@ export default function App() {
                   ))
                 )}
               </ul>
-            </div>
-          )}
-
-          {/* Role Management Section (for managers) */}
-          {isManager && (
-            <div className="bg-white p-6 rounded-2xl shadow-md">
-              <h2 className="text-2xl font-bold mb-4">Manage User Roles</h2>
-              <p className="text-gray-500 italic mb-4">Promote or demote users by email.</p>
-              <form onSubmit={async (e) => {
-                e.preventDefault();
-                const emailToSet = setRoleEmailRef.current?.value;
-                if (!emailToSet) {
-                  setErrorMsg("Please enter an email address.");
-                  return;
-                }
-                const isManagerStatus = e.target.elements.isManager.value === "true";
-                await setManagerRole(emailToSet, isManagerStatus);
-                setRoleEmailRef.current.value = "";
-              }} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">User Email</label>
-                  <input
-                    type="email"
-                    ref={setRoleEmailRef}
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="user@example.com"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Set Role</label>
-                  <select
-                    name="isManager"
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="false">Resident</option>
-                    <option value="true">Manager</option>
-                  </select>
-                </div>
-                <div className="flex justify-end">
-                  <button
-                    type="submit"
-                    className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={uploading}
-                  >
-                    {uploading ? "Updating..." : "Update Role"}
-                  </button>
-                </div>
-              </form>
             </div>
           )}
         </main>
@@ -1726,7 +1680,7 @@ export default function App() {
                 <label className="block text-sm font-medium mb-1">{t.modal.folderPath}</label>
                 <input
                   type="text"
-                  ref={privateFolderPathRef}
+                  ref={privateFolderPathRef} // Use the ref here
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder={t.modal.folderPathPlaceholder}
                 />
