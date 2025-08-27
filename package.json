@@ -15,10 +15,11 @@
   },
   "scripts": {
       "dev": "vite",
-      "build": "npm run build:functions && vite build",
+      "build": "npm run vite-build && npm run functions-build",
       "preview": "vite preview",
       "start": "vite",
-      "build:functions": "node netlify/functions/setup.js && netlify-lambda build netlify/functions"
+      "vite-build": "vite build",
+      "functions-build": "netlify build --context production"
     },
   "browserslist": {
     "production": [
