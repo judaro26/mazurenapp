@@ -1,33 +1,22 @@
 const admin = require('firebase-admin');
 
-// This is the core logic from your original Cloud Function
-async function setRole(email, isManager, callerUid) {
-  const callerDoc = await admin.firestore().collection('users').doc(callerUid).get();
-  const callerData = callerDoc.data();
-
-  if (!callerData.isManager) {
-    return {
-      success: false,
-      message: 'Permission denied. Only managers can set user roles.'
-    };
+// Initialize Firebase Admin SDK using the environment variable
+// This code runs when the Netlify Function is invoked.
+if (!admin.apps.length) {
+  try {
+    // We assume the FIREBASE_ADMIN_CREDENTIALS variable is a JSON string
+    const serviceAccount = JSON.parse(process.env.FIREBASE_ADMIN_CREDENTIALS);
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+  } catch (e) {
+    console.error('Failed to initialize Firebase Admin SDK:', e);
   }
-
-  const userRecord = await admin.auth().getUserByEmail(email);
-  const userId = userRecord.uid;
-
-  await admin.auth().setCustomUserClaims(userId, { isManager: isManager });
-  const userDocRef = admin.firestore().collection('users').doc(userId);
-  await userDocRef.set({ isManager }, { merge: true });
-
-  return {
-    success: true,
-    message: `${email} is now a manager: ${isManager}`
-  };
 }
 
 // The Netlify Function handler
 exports.handler = async (event, context) => {
-  // Use CORS headers to prevent cross-origin errors
+  // Set CORS headers to allow cross-origin requests from your front-end
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
@@ -42,7 +31,7 @@ exports.handler = async (event, context) => {
     };
   }
   
-  // Check for POST request and Authorization header
+  // Verify it's a POST request with an Authorization header
   if (event.httpMethod !== 'POST' || !event.headers.authorization) {
     return {
       statusCode: 405,
@@ -52,32 +41,48 @@ exports.handler = async (event, context) => {
   }
 
   try {
+    // 1. Authenticate the request by verifying the user's ID token
     const idToken = event.headers.authorization.split('Bearer ')[1];
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     const callerUid = decodedToken.uid;
+
+    // 2. Parse the request body to get the target email and role status
     const { email, isManager } = JSON.parse(event.body);
 
-    // Call the core logic
-    const result = await setRole(email, isManager, callerUid);
+    // 3. Verify that the caller (the currently logged-in user) is a manager
+    const callerDoc = await admin.firestore().collection('users').doc(callerUid).get();
+    const callerData = callerDoc.data();
 
-    if (!result.success) {
+    if (!callerData || !callerData.isManager) {
       return {
         statusCode: 403,
-        body: JSON.stringify({ error: result.message }),
+        body: JSON.stringify({ error: 'Permission denied. Only managers can set user roles.' }),
         headers
       };
     }
+    
+    // 4. Look up the target user by their email
+    const userRecord = await admin.auth().getUserByEmail(email);
+    const userId = userRecord.uid;
 
+    // 5. Set the custom claim for the user in Firebase Authentication
+    await admin.auth().setCustomUserClaims(userId, { isManager: isManager });
+
+    // 6. Update the user document in Firestore to reflect the new role
+    const userDocRef = admin.firestore().collection('users').doc(userId);
+    await userDocRef.set({ isManager }, { merge: true });
+
+    // 7. Return a success response
     return {
       statusCode: 200,
-      body: JSON.stringify({ result: result.message }),
+      body: JSON.stringify({ result: `${email} is now a manager: ${isManager}` }),
       headers
     };
   } catch (error) {
-    console.error('Function error:', error);
+    console.error('Function execution error:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: 'Internal Server Error' }),
+      body: JSON.stringify({ error: `An unexpected error occurred: ${error.message}` }),
       headers
     };
   }
