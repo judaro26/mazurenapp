@@ -357,61 +357,51 @@ export default function App() {
         setDb(dbInstance);
 
         const unsub = onAuthStateChanged(authInstance, async (user) => {
-          try {
-            if (user) {
-              setUserIdentifier(user.uid);
-              setIsLoggedIn(true);
-              setUserEmail(user.email || null);
-              
-              if (user.isAnonymous) {
-                setIsManager(false);
-                setUserRole("anonymous");
-                setUserApartment(null);
-              } else {
-                // This is the core fix: Force refresh the ID token immediately
-                await user.getIdToken(true);
-                const idTokenResult = await user.getIdTokenResult();
-                const isManagerStatus = idTokenResult.claims?.isManager === true;
-                
-                console.log("Custom claims from token:", idTokenResult.claims);
-                console.log("isManager from claims:", isManagerStatus);
-        
-                const userDocRef = doc(dbInstance, `artifacts/${appId}/public/data/users`, user.uid);
-                const snap = await getDoc(userDocRef);
-                
-                if (snap.exists()) {
-                  const userData = snap.data();
-                  setUserApartment(userData.apartment || null);
-                } else {
-                  await setDoc(userDocRef, { 
-                    isManager: isManagerStatus, 
-                    email: user.email || null,
-                    name: null,
-                    apartment: null,
-                    phone: null
-                  });
-                  setUserApartment(null);
-                }
-        
-                setIsManager(isManagerStatus);
-                setUserRole(isManagerStatus ? "manager" : "resident");
-                console.log("Final user role:", isManagerStatus ? "manager" : "resident");
-              }
-            } else {
-              setUserIdentifier(null);
-              setIsLoggedIn(false);
+          if (user) {
+            setUserIdentifier(user.uid);
+            setIsLoggedIn(true);
+            setUserEmail(user.email || null);
+            
+            if (user.isAnonymous) {
               setIsManager(false);
-              setUserRole(null);
-              setUserEmail(null);
+              setUserRole("anonymous");
               setUserApartment(null);
+            } else {
+              // Fetch the latest token, ensuring custom claims are up-to-date
+              const idTokenResult = await user.getIdTokenResult(true);
+              const isManagerStatus = idTokenResult.claims?.isManager === true;
+
+              const userDocRef = doc(dbInstance, `artifacts/${appId}/public/data/users`, user.uid);
+              const snap = await getDoc(userDocRef);
+              
+              if (snap.exists()) {
+                const userData = snap.data();
+                setUserApartment(userData.apartment || null);
+              } else {
+                await setDoc(userDocRef, {
+                  isManager: isManagerStatus,
+                  email: user.email || null,
+                  name: null,
+                  apartment: null,
+                  phone: null
+                });
+                setUserApartment(null);
+              }
+
+              setIsManager(isManagerStatus);
+              setUserRole(isManagerStatus ? "manager" : "resident");
+              console.log("onAuthStateChanged - Final user role:", isManagerStatus ? "manager" : "resident");
             }
-          } catch (err) {
-            console.error("Auth state change error:", err);
-            setErrorMsg("Failed to load user profile.");
-          } finally {
-            setIsAuthReady(true);
-            setLoading(false);
+          } else {
+            setUserIdentifier(null);
+            setIsLoggedIn(false);
+            setIsManager(false);
+            setUserRole(null);
+            setUserEmail(null);
+            setUserApartment(null);
           }
+          setIsAuthReady(true);
+          setLoading(false);
         });
 
         return () => unsub();
@@ -444,7 +434,12 @@ export default function App() {
       });
 
       setShowRegisterForm(false);
-      await signInWithEmailAndPassword(auth, registerEmail, registerPassword);
+      // Automatically sign in the new user and get their fresh token
+      const userAfterLogin = (await signInWithEmailAndPassword(auth, registerEmail, registerPassword)).user;
+      const idTokenResult = await userAfterLogin.getIdTokenResult(true);
+      const isManagerStatus = idTokenResult.claims?.isManager === true;
+      setIsManager(isManagerStatus);
+      setUserRole(isManagerStatus ? "manager" : "resident");
     } catch (err) {
       console.error("Registration failed:", err);
       setRegisterError(err.message);
@@ -685,12 +680,32 @@ export default function App() {
       setLoginError("Authentication service is not ready.");
       return;
     }
+    setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      await auth.currentUser.getIdTokenResult(true); 
+      // Sign in the user
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Force a token refresh immediately after a successful login
+      const idTokenResult = await user.getIdTokenResult(true);
+      const isManagerStatus = idTokenResult.claims?.isManager === true;
+
+      // Update state based on the fresh token claims
+      setUserIdentifier(user.uid);
+      setIsLoggedIn(true);
+      setUserEmail(user.email || null);
+      setIsManager(isManagerStatus);
+      setUserRole(isManagerStatus ? "manager" : "resident");
+      
+      console.log("Login successful. Custom claims from fresh token:", idTokenResult.claims);
+      console.log("Final user role after login:", isManagerStatus ? "manager" : "resident");
+
+      setLoginError("");
+      setLoading(false);
     } catch (err) {
       console.error("Login failed:", err);
       setLoginError(t.login.invalidCredentials);
+      setLoading(false);
     }
   };
 
@@ -768,6 +783,12 @@ export default function App() {
       
       alert(`Role for ${targetEmail} updated successfully.`);
 
+      // Refresh the UI by getting the new claims
+      const idTokenResult = await currentUser.getIdTokenResult();
+      const newIsManagerStatus = idTokenResult.claims?.isManager === true;
+      setIsManager(newIsManagerStatus);
+      setUserRole(newIsManagerStatus ? "manager" : "resident");
+
     } catch (error) {
       console.error("Error setting manager role:", error);
       setErrorMsg(error.message);
@@ -777,6 +798,27 @@ export default function App() {
   };
 
   /**
+   * Modal
+   */
+  const Modal = ({ title, onClose, children }) => (
+    <div className="fixed inset-0 bg-black/40 flex justify-center items-center p-4 z-50">
+      <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-lg">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-bold">{title}</h3>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-800"
+            aria-label="Close modal"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
 
   /**
    * Early error: missing config
@@ -972,62 +1014,8 @@ export default function App() {
   }
 
   /**
-   * Modal
+   * Main UI
    */
-  const Modal = ({ title, onClose, children }) => (
-    <div className="fixed inset-0 bg-black/40 flex justify-center items-center p-4 z-50">
-      <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-lg">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-bold">{title}</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-800"
-            aria-label="Close modal"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-
-  /**
-   * Early error: missing config
-   */
-  if (configError) {
-    return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
-        <div className="max-w-xl bg-white rounded-2xl shadow p-6">
-          <h2 className="text-2xl font-bold mb-2">{t.configMissing.title}</h2>
-          <p className="text-gray-600 mb-4">{t.configMissing.desc}</p>
-          <ul className="list-disc pl-6 space-y-2 text-gray-700">
-            <li>
-              <span className="font-semibold">{t.configMissing.opt1Title}:</span> {t.configMissing.opt1Desc}
-            </li>
-            <li>
-              <span className="font-semibold">{t.configMissing.opt2Title}:</span> {t.configMissing.opt2Desc}
-            </li>
-          </ul>
-          <p className="text-sm text-gray-500 mt-4">{t.configMissing.required}</p>
-        </div>
-      </div>
-    );
-  }
-
-  /**
-   * Global loading
-   */
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-100">
-        <div className="animate-pulse text-gray-500 text-lg">{t.loading}</div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gray-100 font-sans text-gray-800 p-4 sm:p-6">
       <div className="max-w-4xl mx-auto">
