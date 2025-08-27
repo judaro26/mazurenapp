@@ -26,7 +26,10 @@ exports.handler = async (event) => {
   }
 
   if (!process.env.GOOGLE_CLOUD_CREDENTIALS) {
-    return { statusCode: 500, body: 'Missing Google Cloud credentials.' };
+      return {
+          statusCode: 500,
+          body: JSON.stringify({ error: 'Missing Google Cloud credentials.' }),
+      };
   }
 
   if (!isFirebaseInitialized) {
