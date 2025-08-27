@@ -1,16 +1,24 @@
 const admin = require('firebase-admin');
+const fs = require('fs');
+const path = require('path');
 
-// Initialize Firebase Admin SDK using the environment variable
-// This code runs when the Netlify Function is invoked.
+// Initialize Firebase Admin SDK by reading credentials from a file
 if (!admin.apps.length) {
   try {
-    // We assume the FIREBASE_ADMIN_CREDENTIALS variable is a JSON string
-    const serviceAccount = JSON.parse(process.env.FIREBASE_ADMIN_CREDENTIALS);
+    const credentialsPath = path.join(__dirname, 'firebase-credentials.json');
+    const serviceAccount = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
+
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount)
     });
   } catch (e) {
-    console.error('Failed to initialize Firebase Admin SDK:', e);
+    console.error('Failed to initialize Firebase Admin SDK. Ensure the credentials file exists and is valid.', e);
+    // Exit the function early if initialization fails to prevent further errors.
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: 'Server configuration error.' }),
+      headers: { 'Access-Control-Allow-Origin': '*' }
+    };
   }
 }
 
