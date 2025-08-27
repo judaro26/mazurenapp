@@ -5,7 +5,8 @@ const path = require('path');
 // Initialize Firebase Admin SDK by reading credentials from a file
 if (!admin.apps.length) {
   try {
-    const credentialsPath = path.join(__dirname, 'firebase-credentials.json');
+    // Path to the credential file created by setup.js
+    const credentialsPath = path.join(__dirname, 'temp', 'firebase-credentials.json');
     const serviceAccount = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
 
     admin.initializeApp({
@@ -13,18 +14,22 @@ if (!admin.apps.length) {
     });
   } catch (e) {
     console.error('Failed to initialize Firebase Admin SDK. Ensure the credentials file exists and is valid.', e);
-    // Exit the function early if initialization fails to prevent further errors.
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: 'Server configuration error.' }),
-      headers: { 'Access-Control-Allow-Origin': '*' }
+    // Return an error to the client if initialization fails.
+    exports.handler = async (event, context) => {
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ error: 'Server configuration error. Firebase Admin SDK failed to initialize.' }),
+        headers: { 'Access-Control-Allow-Origin': '*' }
+      };
     };
+    // Throw to stop the build process if this is a build-time error
+    throw new Error('Firebase Admin SDK initialization failed.');
   }
 }
 
 // The Netlify Function handler
 exports.handler = async (event, context) => {
-  // Set CORS headers to allow cross-origin requests from your front-end
+  // Set CORS headers
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
@@ -39,7 +44,6 @@ exports.handler = async (event, context) => {
     };
   }
   
-  // Verify it's a POST request with an Authorization header
   if (event.httpMethod !== 'POST' || !event.headers.authorization) {
     return {
       statusCode: 405,
@@ -49,15 +53,12 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    // 1. Authenticate the request by verifying the user's ID token
     const idToken = event.headers.authorization.split('Bearer ')[1];
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     const callerUid = decodedToken.uid;
 
-    // 2. Parse the request body to get the target email and role status
     const { email, isManager } = JSON.parse(event.body);
 
-    // 3. Verify that the caller (the currently logged-in user) is a manager
     const callerDoc = await admin.firestore().collection('users').doc(callerUid).get();
     const callerData = callerDoc.data();
 
@@ -69,18 +70,14 @@ exports.handler = async (event, context) => {
       };
     }
     
-    // 4. Look up the target user by their email
     const userRecord = await admin.auth().getUserByEmail(email);
     const userId = userRecord.uid;
 
-    // 5. Set the custom claim for the user in Firebase Authentication
     await admin.auth().setCustomUserClaims(userId, { isManager: isManager });
 
-    // 6. Update the user document in Firestore to reflect the new role
     const userDocRef = admin.firestore().collection('users').doc(userId);
     await userDocRef.set({ isManager }, { merge: true });
 
-    // 7. Return a success response
     return {
       statusCode: 200,
       body: JSON.stringify({ result: `${email} is now a manager: ${isManager}` }),
