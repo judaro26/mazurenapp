@@ -25,6 +25,7 @@ import {
   collectionGroup,
 } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getFunctions, httpsCallable } from "firebase/functions"; // NEW: Import getFunctions and httpsCallable
 
 /**
  * ----------------------------------------------
@@ -90,7 +91,7 @@ const translations = {
       file: "File (optional)",
       selectResident: "Select Resident",
       folderPath: "Folder/File Directory (optional)",
-      folderPathPlaceholder: "e.g., financials/2024_reports"
+      folderPathPlaceholder: "e.g., financials/2024_reports",
     },
     loading: "Loading...",
     login: {
@@ -112,7 +113,7 @@ const translations = {
       managerLogin: "Manager Login",
       roleManager: "Manager",
       roleResident: "Resident",
-      roleAnonymous: "Anonymous User"
+      roleAnonymous: "Anonymous User",
     },
     configMissing: {
       title: "Missing Firebase configuration",
@@ -186,7 +187,7 @@ const translations = {
       file: "Archivo (opcional)",
       selectResident: "Seleccionar Residente",
       folderPath: "Directorio de Carpeta/Archivo (opcional)",
-      folderPathPlaceholder: "ej., finanzas/informes_2024"
+      folderPathPlaceholder: "ej., finanzas/informes_2024",
     },
     loading: "Cargando...",
     login: {
@@ -209,7 +210,7 @@ const translations = {
       managerLogin: "Iniciar sesión como administrador",
       roleManager: "Administrador",
       roleResident: "Residente",
-      roleAnonymous: "Usuario anónimo"
+      roleAnonymous: "Usuario anónimo",
     },
     configMissing: {
       title: "Falta la configuración de Firebase",
@@ -248,7 +249,7 @@ function loadFirebaseConfig() {
     apiKey: import.meta.env.VITE_APP_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_APP_FIREBASE_AUTH_DOMAIN,
     projectId: import.meta.env.VITE_APP_FIREBASE_PROJECT_ID,
-    storageBucket: 'portalmalaga-bad62.appspot.com',
+    storageBucket: "portalmalaga-bad62.appspot.com",
     messagingSenderId: import.meta.env.VITE_APP_FIREBASE_MESSAGING_SENDER_ID,
     appId: import.meta.env.VITE_APP_FIREBASE_APP_ID,
   };
@@ -366,8 +367,8 @@ export default function App() {
                 setUserRole("anonymous");
                 setUserApartment(null);
               } else {
-                // Force refresh the ID token to ensure we have the latest claims
-                await user.getIdToken(true); // Force refresh
+                // CORRECTED: Force refresh the ID token to ensure we have the latest claims
+                await user.getIdToken(true); 
                 const idTokenResult = await user.getIdTokenResult();
                 const isManagerStatus = idTokenResult.claims?.isManager === true;
                 
@@ -380,8 +381,6 @@ export default function App() {
                 if (snap.exists()) {
                   const userData = snap.data();
                   setUserApartment(userData.apartment || null);
-                  // The isManager field from Firestore is now only for reference,
-                  // the logic below relies on the custom claim.
                 } else {
                   await setDoc(userDocRef, { 
                     isManager: isManagerStatus, 
@@ -794,8 +793,8 @@ export default function App() {
     }
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // Force token refresh after login to get custom claims
-      await auth.currentUser.getIdTokenResult(true); // This line is correct
+      // Corrected: Force token refresh after login to get custom claims
+      await auth.currentUser.getIdTokenResult(true); 
     } catch (err) {
       console.error("Login failed:", err);
       setLoginError(t.login.invalidCredentials);
