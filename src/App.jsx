@@ -25,7 +25,7 @@ import {
   collectionGroup,
 } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { getFunctions, httpsCallable } from "firebase/functions"; // NEW: Import getFunctions and httpsCallable
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 /**
  * ----------------------------------------------
@@ -339,6 +339,7 @@ export default function App() {
   const documentNameRef = React.useRef(null);
   const documentUrlRef = React.useRef(null);
   const privateFolderPathRef = React.useRef(null);
+  const setRoleEmailRef = React.useRef(null); // Ref for manager role setting form
 
   useEffect(() => {
     (async () => {
@@ -367,8 +368,8 @@ export default function App() {
                 setUserRole("anonymous");
                 setUserApartment(null);
               } else {
-                // CORRECTED: Force refresh the ID token to ensure we have the latest claims
-                await user.getIdToken(true); 
+                // Force refresh the ID token to ensure we have the latest claims
+                await user.getIdToken(true);
                 const idTokenResult = await user.getIdTokenResult();
                 const isManagerStatus = idTokenResult.claims?.isManager === true;
                 
@@ -392,7 +393,6 @@ export default function App() {
                   setUserApartment(null);
                 }
         
-                // Set the manager status and role based directly on the custom claim.
                 setIsManager(isManagerStatus);
                 setUserRole(isManagerStatus ? "manager" : "resident");
                 console.log("Final user role:", isManagerStatus ? "manager" : "resident");
@@ -557,10 +557,6 @@ export default function App() {
     setUploading(true);
     let imageUrls = [];
 
-    // This section assumes that the user will not be uploading images for announcements since Firebase Storage
-    // is not being used directly. If you want this feature, you would need to implement it
-    // with a similar Netlify Function-based approach as the private file uploads.
-
     try {
       const path = `artifacts/${appId}/public/data/announcements`;
       await addDoc(collection(db, path), {
@@ -585,10 +581,8 @@ export default function App() {
   const handleUploadPrivateFiles = async (e) => {
     e.preventDefault();
     
-    // Get the folder path value from the ref
     const folderPath = privateFolderPathRef.current?.value?.trim() || "";
     
-    // Validate form input
     if (!selectedResidentUid || selectedPrivateFiles.length === 0) {
       setErrorMsg("Please select a resident and at least one file.");
       return;
@@ -603,11 +597,8 @@ export default function App() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      // CORRECTED: Pass the filename from the file object
       formData.append('fileName', file.name);
-      // CORRECTED: Use the folderPath from the ref value
       formData.append('folderPath', folderPath);
-      // CORRECTED: Use the selectedResidentUid state value
       formData.append('residentUid', selectedResidentUid);
       
       const response = await fetch('/.netlify/functions/uploadToGcs', {
@@ -633,7 +624,7 @@ export default function App() {
       setShowModal(null);
       setSelectedPrivateFiles([]);
       setSelectedFileNames([]);
-      privateFolderPathRef.current.value = ""; // Reset the ref value
+      privateFolderPathRef.current.value = "";
     } catch (err) {
       console.error("Error uploading private file:", err);
       setErrorMsg(`Failed to upload private file: ${err.message}`);
@@ -704,7 +695,6 @@ export default function App() {
 
     try {
       if (pqrFile) {
-        // CORRECTED: Use dynamic import to get storage functions
         const { getStorage, ref, uploadBytes, getDownloadURL } = await import("firebase/storage");
         const storage = getStorage(app);
         const storagePath = `pqrs/${auth.currentUser.uid}-${Date.now()}-${pqrFile.name}`;
@@ -793,7 +783,6 @@ export default function App() {
     }
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // Corrected: Force token refresh after login to get custom claims
       await auth.currentUser.getIdTokenResult(true); 
     } catch (err) {
       console.error("Login failed:", err);
@@ -833,6 +822,53 @@ export default function App() {
     } catch (err) {
       console.error("Failed to update PQR status:", err);
       setErrorMsg("Couldn't update status.");
+    }
+  };
+
+  // NEW: Function to call the Netlify Function for role updates
+  const setManagerRole = async (targetEmail, isManagerStatus) => {
+    const auth = getAuth();
+    const currentUser = auth.currentUser;
+
+    if (!currentUser) {
+      console.error("User not authenticated.");
+      return;
+    }
+
+    setUploading(true);
+    setErrorMsg("");
+
+    try {
+      const idToken = await currentUser.getIdToken();
+
+      const response = await fetch('/.netlify/functions/setManagerRole', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ email: targetEmail, isManager: isManagerStatus }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update role.');
+      }
+
+      const result = await response.json();
+      console.log(result.result);
+
+      // Force a token refresh to get the updated custom claims
+      await currentUser.getIdToken(true);
+      console.log('ID token refreshed. New claims should now be available.');
+      
+      alert(`Role for ${targetEmail} updated successfully.`);
+
+    } catch (error) {
+      console.error("Error setting manager role:", error);
+      setErrorMsg(error.message);
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -1495,6 +1531,55 @@ export default function App() {
                   ))
                 )}
               </ul>
+            </div>
+          )}
+
+          {/* Role Management Section (for managers) */}
+          {isManager && (
+            <div className="bg-white p-6 rounded-2xl shadow-md">
+              <h2 className="text-2xl font-bold mb-4">Manage User Roles</h2>
+              <p className="text-gray-500 italic mb-4">Promote or demote users by email.</p>
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                const emailToSet = setRoleEmailRef.current?.value;
+                if (!emailToSet) {
+                  setErrorMsg("Please enter an email address.");
+                  return;
+                }
+                const isManagerStatus = e.target.elements.isManager.value === "true";
+                await setManagerRole(emailToSet, isManagerStatus);
+                setRoleEmailRef.current.value = "";
+              }} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">User Email</label>
+                  <input
+                    type="email"
+                    ref={setRoleEmailRef}
+                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="user@example.com"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Set Role</label>
+                  <select
+                    name="isManager"
+                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="false">Resident</option>
+                    <option value="true">Manager</option>
+                  </select>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={uploading}
+                  >
+                    {uploading ? "Updating..." : "Update Role"}
+                  </button>
+                </div>
+              </form>
             </div>
           )}
         </main>
