@@ -12,14 +12,17 @@
     "netlify-lambda": "^2.0.16",
     "autoprefixer": "^10.4.19",
     "tailwindcss": "^3.0.0",
-    "vite": "^4.0.0"
+    "vite": "^4.0.0",
+    "firebase-admin": "^11.5.0",
+    "busboy": "^1.6.0"
   },
   "scripts": {
     "dev": "vite",
-    "build": "npm run vite-build",
+    "build": "npm run vite-build && npm run functions-build",
     "preview": "vite preview",
     "start": "vite",
-    "vite-build": "vite build"
+    "vite-build": "vite build",
+    "functions-build": "netlify build --context production"
   },
   "browserslist": {
     "production": [
