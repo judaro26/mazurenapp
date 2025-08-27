@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { initializeApp, getApps, getApp } from "firebase/app";
 import {
   getAuth,
@@ -22,9 +22,8 @@ import {
   updateDoc,
   deleteDoc,
   where,
-  collectionGroup, // Import collectionGroup
 } from "firebase/firestore";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+// REMOVED: import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 /**
  * ----------------------------------------------
@@ -79,7 +78,7 @@ const translations = {
       pqrPlaceholder: "e.g., Noise complaint from unit 10B",
       pqrBodyPlaceholder:
         "e.g., The residents of unit 10B have been playing loud music...",
-      submit: "Enviar",
+      submit: "Submit",
       documentName: "Document Name",
       documentNamePlaceholder: "e.g., 2024 Annual Budget",
       documentUrl: "Document URL",
@@ -121,10 +120,10 @@ const translations = {
       how: "How to fix",
       opt1Title: "Option A: Inject __firebase_config",
       opt1Desc:
-        "Agregue un <script> antes de su bundle que defina window.__firebase_config = {...}.",
-      opt2Title: "Opción B: Variables de entorno en Netlify",
+        "Add a <script> before your bundle that sets window.__firebase_config = {...}.",
+      opt2Title: "Option B: Netlify env vars",
       opt2Desc:
-        "Configure las variables REACT_APP_FIREBASE_* en Site settings → Build & deploy → Environment. Luego vuelva a desplegar.",
+        "Set REACT_APP_FIREBASE_* variables in Site settings → Build & deploy → Environment. Then redeploy.",
       required: "Required keys: apiKey, authDomain, projectId, appId",
     },
   },
@@ -241,9 +240,11 @@ function safeJsonParse(value) {
 }
 
 function loadFirebaseConfig() {
+  // 1) Prefer a global window.__firebase_config (can be a JSON string or object)
   const globalCfg = typeof window !== "undefined" ? safeJsonParse(window.__firebase_config) : null;
   if (globalCfg && typeof globalCfg === "object") return globalCfg;
 
+  // 2) Fall back to build-time env vars (Vite): import.meta.env
   const cfg = {
     apiKey: import.meta.env.VITE_APP_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_APP_FIREBASE_AUTH_DOMAIN,
@@ -258,6 +259,7 @@ function loadFirebaseConfig() {
 }
 
 function formatTimestamp(ts) {
+  // Firestore Timestamp or Date or null
   try {
     const date = ts?.toDate ? ts.toDate() : ts instanceof Date ? ts : null;
     if (!date) return "";
@@ -273,6 +275,7 @@ function formatTimestamp(ts) {
  * ----------------------------------------------
  */
 export default function App() {
+  // Language
   const [language, setLanguage] = useState(() => localStorage.getItem("language") || "en");
   const t = translations[language] || translations.en;
   const toggleLanguage = () => {
@@ -281,6 +284,7 @@ export default function App() {
     localStorage.setItem("language", next);
   };
 
+  // Firebase singleton init (memoized)
   const firebaseConfig = useMemo(loadFirebaseConfig, []);
   const [configError, setConfigError] = useState(!firebaseConfig);
 
@@ -295,6 +299,8 @@ export default function App() {
   const [app, setApp] = useState(null);
   const [auth, setAuth] = useState(null);
   const [db, setDb] = useState(null);
+  const [storage, setStorage] = useState(null);
+
   const [userIdentifier, setUserIdentifier] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -304,11 +310,14 @@ export default function App() {
   const [userApartment, setUserApartment] = useState(null);
   const [residents, setResidents] = useState([]);
   const [privateDocuments, setPrivateDocuments] = useState([]);
+  const privateFilesRef = useRef(null);
+  const privateFolderNameRef = useRef(null);
   const [selectedResidentUid, setSelectedResidentUid] = useState("");
+  // CORRECTED: Use a state variable for file selection in the modal
   const [selectedPrivateFiles, setSelectedPrivateFiles] = useState([]);
-  const [selectedFileNames, setSelectedFileNames] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
+
   const [view, setView] = useState("announcements");
   const [announcements, setAnnouncements] = useState([]);
   const [pqrs, setPqrs] = useState([]);
@@ -329,15 +338,14 @@ export default function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
-  const announcementTitleRef = React.useRef(null);
-  const announcementBodyRef = React.useRef(null);
-  const pqrNameRef = React.useRef(null);
-  const pqrApartmentRef = React.useRef(null);
-  const pqrTitleRef = React.useRef(null);
-  const pqrBodyRef = React.useRef(null);
-  const documentNameRef = React.useRef(null);
-  const documentUrlRef = React.useRef(null);
-  const privateFolderPathRef = React.useRef(null);
+  const announcementTitleRef = useRef(null);
+  const announcementBodyRef = useRef(null);
+  const pqrNameRef = useRef(null);
+  const pqrApartmentRef = useRef(null);
+  const pqrTitleRef = useRef(null);
+  const pqrBodyRef = useRef(null);
+  const documentNameRef = useRef(null);
+  const documentUrlRef = useRef(null);
 
   useEffect(() => {
     (async () => {
@@ -350,9 +358,11 @@ export default function App() {
         const appInstance = getApps().length ? getApp() : initializeApp(firebaseConfig);
         const authInstance = getAuth(appInstance);
         const dbInstance = getFirestore(appInstance);
+        // REMOVED: const storageInstance = getStorage(appInstance);
         setApp(appInstance);
         setAuth(authInstance);
         setDb(dbInstance);
+        // REMOVED: setStorage(storageInstance);
 
         const unsub = onAuthStateChanged(authInstance, async (user) => {
           try {
@@ -365,33 +375,31 @@ export default function App() {
                 setIsManager(false);
                 setUserRole("anonymous");
                 setUserApartment(null);
-                setIsAuthReady(true);
-                setLoading(false);
               } else {
-                const idTokenResult = await user.getIdTokenResult(true);
-                const isManagerStatus = idTokenResult.claims?.isManager === true;
-                setIsManager(isManagerStatus);
-                setUserRole(isManagerStatus ? "manager" : "resident");
-
                 const userDocRef = doc(dbInstance, `artifacts/${appId}/public/data/users`, user.uid);
                 const snap = await getDoc(userDocRef);
                 if (snap.exists()) {
                   const userData = snap.data();
+                  const isManagerStatus = Boolean(userData?.isManager);
+                  setIsManager(isManagerStatus);
+                  setUserRole(isManagerStatus ? "manager" : "resident");
                   setUserApartment(userData.apartment || null);
                 } else {
                   await setDoc(userDocRef, { 
-                    isManager: isManagerStatus, 
+                    isManager: false, 
                     email: user.email || null,
                     name: null,
                     apartment: null,
                     phone: null
                   });
+                  setIsManager(false);
+                  setUserRole("resident");
                   setUserApartment(null);
                 }
-
-                setIsAuthReady(true);
-                setLoading(false);
               }
+
+              setIsAuthReady(true);
+              setLoading(false);
             } else {
               setUserIdentifier(null);
               setIsLoggedIn(false);
@@ -421,99 +429,88 @@ export default function App() {
 
   useEffect(() => {
     if (!db || !isAuthReady) return;
-    
+
     const announcementsPath = `artifacts/${appId}/public/data/announcements`;
     const pqrsPath = `artifacts/${appId}/public/data/pqrs`;
     const documentsPath = `artifacts/${appId}/public/data/documents`;
     const usersPath = `artifacts/${appId}/public/data/users`;
-    
+
     let unsubAnnouncements = () => {};
     let unsubPqrs = () => {};
     let unsubDocs = () => {};
     let unsubPrivateDocs = () => {};
     let unsubResidents = () => {};
-    
+
     try {
-        unsubAnnouncements = onSnapshot(
-            query(collection(db, announcementsPath), orderBy("createdAt", "desc")),
-            (snap) => {
-                setAnnouncements(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-            },
-            (err) => console.error("Announcements listener error:", err)
-        );
+      unsubAnnouncements = onSnapshot(
+        query(collection(db, announcementsPath), orderBy("createdAt", "desc")),
+        (snap) => {
+          setAnnouncements(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        },
+        (err) => console.error("Announcements listener error:", err)
+      );
 
-        unsubDocs = onSnapshot(
-            query(collection(db, documentsPath), orderBy("createdAt", "desc")),
-            (snap) => setDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-            (err) => console.error("Documents listener error:", err)
+      if (isManager) {
+        unsubPqrs = onSnapshot(
+          query(collection(db, pqrsPath), orderBy("createdAt", "desc")),
+          (snap) => setPqrs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+          (err) => console.error("PQRs listener error:", err)
         );
+      } else if (auth?.currentUser?.uid) {
+        unsubPqrs = onSnapshot(
+          query(collection(db, pqrsPath), where("authorId", "==", auth.currentUser.uid), orderBy("createdAt", "desc")),
+          (snap) => setPqrs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+          (err) => console.error("PQRs listener error:", err)
+        );
+      } else {
+        setPqrs([]);
+      }
+      
+      unsubDocs = onSnapshot(
+        query(collection(db, documentsPath), orderBy("createdAt", "desc")),
+        (snap) => setDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+        (err) => console.error("Documents listener error:", err)
+      );
 
-        if (userRole) {
-            if (userRole === "manager") {
-                unsubPqrs = onSnapshot(
-                    query(collection(db, pqrsPath), orderBy("createdAt", "desc")),
-                    (snap) => setPqrs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-                    (err) => console.error("PQRs listener error:", err)
-                );
-            } else if (userRole === "resident" && auth?.currentUser?.uid) {
-                unsubPqrs = onSnapshot(
-                    query(collection(db, pqrsPath), where("authorId", "==", auth.currentUser.uid), orderBy("createdAt", "desc")),
-                    (snap) => setPqrs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-                    (err) => console.error("PQRs listener error:", err)
-                );
-            } else {
-                setPqrs([]);
+      if (userRole === "resident" && auth?.currentUser?.uid) {
+        const privateDocsPath = `${usersPath}/${auth.currentUser.uid}/privateDocuments`;
+        unsubPrivateDocs = onSnapshot(
+          query(collection(db, privateDocsPath), orderBy("createdAt", "desc")),
+          (snap) => setPrivateDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+          (err) => console.error("Private Documents listener error:", err)
+        );
+      } else {
+        setPrivateDocuments([]);
+      }
+
+      if (isManager) {
+        unsubResidents = onSnapshot(
+          query(collection(db, usersPath), where("isManager", "==", false)),
+          (snap) => {
+            const residentsList = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            setResidents(residentsList);
+            if (residentsList.length > 0) {
+              setSelectedResidentUid(residentsList[0].id);
             }
-    
-            if (userRole === "manager") {
-                unsubResidents = onSnapshot(
-                    query(collection(db, usersPath), where("isManager", "==", false)),
-                    (snap) => {
-                        const residentsList = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-                        setResidents(residentsList);
-                        if (residentsList.length > 0) {
-                            setSelectedResidentUid(residentsList[0].id);
-                        }
-                    },
-                    (err) => console.error("Residents list listener error:", err)
-                );
-            } else {
-                setResidents([]);
-            }
-    
-            if (userRole === "resident" && auth?.currentUser?.uid) {
-                const privateDocsPath = `${usersPath}/${auth.currentUser.uid}/privateDocuments`;
-                unsubPrivateDocs = onSnapshot(
-                    query(collection(db, privateDocsPath), orderBy("createdAt", "desc")),
-                    (snap) => setPrivateDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-                    (err) => console.error("Private Documents listener error:", err)
-                );
-            } else if (userRole === "manager") {
-                unsubPrivateDocs = onSnapshot(
-                    query(collectionGroup(db, 'privateDocuments'), orderBy("createdAt", "desc")),
-                    (snap) => setPrivateDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-                    (err) => console.error("Private Documents listener error:", err)
-                );
-            } else {
-                setPrivateDocuments([]);
-            }
-        } else {
-            setPqrs([]);
-            setResidents([]);
-            setPrivateDocuments([]);
-        }
+          },
+          (err) => console.error("Residents list listener error:", err)
+        );
+      } else {
+        setResidents([]);
+      }
+
     } catch (err) {
-        console.error("Error setting up Firestore listeners:", err);
+      console.error("Error setting up Firestore listeners:", err);
     }
-    
+
     return () => {
-        unsubAnnouncements();
-        unsubPqrs();
-        unsubDocs();
-        unsubResidents();
-        unsubPrivateDocs();
+      unsubAnnouncements();
+      unsubPqrs();
+      unsubDocs();
+      unsubPrivateDocs();
+      unsubResidents();
     };
-}, [db, isAuthReady, appId, isLoggedIn, isManager, auth, userRole]);
+  }, [db, isAuthReady, appId, isLoggedIn, isManager, auth, userRole]);
 
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -545,24 +542,29 @@ export default function App() {
 
   const handleAddAnnouncement = async (e) => {
     e.preventDefault();
+    // Use Firestore only to add a document with image URLs.
     if (!db || !auth?.currentUser?.uid) return;
     const title = announcementTitleRef.current?.value?.trim();
     const body = announcementBodyRef.current?.value?.trim();
     if (!title || !body) return;
 
+    // This part of the function still relies on Firebase Storage.
+    // If you need this to work, you'll need to enable Firebase Storage
+    // for your portalmalaga-bad62 project, or also use a Netlify function.
+    // Assuming this feature is not currently used or needs the same fix.
     setUploading(true);
     let imageUrls = [];
 
-    // This section assumes that the user will not be uploading images for announcements since Firebase Storage
-    // is not being used directly. If you want this feature, you would need to implement it
-    // with a similar Netlify Function-based approach as the private file uploads.
+    // The logic to upload images would go here, using a similar
+    // approach to the handleUploadPrivateFiles function if you
+    // wanted to use a Netlify function for image uploads as well.
 
     try {
       const path = `artifacts/${appId}/public/data/announcements`;
       await addDoc(collection(db, path), {
         title,
         body,
-        imageUrls: imageUrls, 
+        imageUrls: imageUrls, // This will be empty if not uploaded
         createdAt: serverTimestamp(),
         authorId: auth.currentUser.uid,
       });
@@ -581,9 +583,6 @@ export default function App() {
   const handleUploadPrivateFiles = async (e) => {
     e.preventDefault();
     
-    // Get the folder path value from the ref
-    const folderPath = privateFolderPathRef.current?.value?.trim() || "";
-    
     // Validate form input
     if (!selectedResidentUid || selectedPrivateFiles.length === 0) {
       setErrorMsg("Please select a resident and at least one file.");
@@ -594,18 +593,17 @@ export default function App() {
     setErrorMsg("");
 
     const file = selectedPrivateFiles[0];
+    const folderPath = privateFolderNameRef.current?.value?.trim() || "general";
     const privateDocsCollection = collection(db, `artifacts/${appId}/public/data/users/${selectedResidentUid}/privateDocuments`);
     
     try {
       const formData = new FormData();
       formData.append('file', file);
-      // CORRECTED: Pass the filename from the file object
       formData.append('fileName', file.name);
-      // CORRECTED: Use the folderPath from the ref value
       formData.append('folderPath', folderPath);
-      // CORRECTED: Use the selectedResidentUid state value
       formData.append('residentUid', selectedResidentUid);
       
+      // Make an API call to your Netlify Function to handle the upload
       const response = await fetch('/.netlify/functions/uploadToGcs', {
         method: 'POST',
         body: formData,
@@ -617,19 +615,19 @@ export default function App() {
       }
 
       const result = await response.json();
+      const fileUrl = `https://storage.googleapis.com/${firebaseConfig.storageBucket}/private_files/${selectedResidentUid}/${folderPath}/${file.name}`;
       
+      // After successful upload to GCS, save the file metadata to Firestore
       await addDoc(privateDocsCollection, {
         fileName: file.name,
         folder: folderPath,
-        url: result.fileUrl,
+        url: fileUrl,
         uploadedBy: userIdentifier,
         createdAt: serverTimestamp(),
       });
 
       setShowModal(null);
       setSelectedPrivateFiles([]);
-      setSelectedFileNames([]);
-      privateFolderPathRef.current.value = ""; // Reset the ref value
     } catch (err) {
       console.error("Error uploading private file:", err);
       setErrorMsg(`Failed to upload private file: ${err.message}`);
@@ -687,7 +685,10 @@ export default function App() {
 
   const handleAddPQR = async (e) => {
     e.preventDefault();
-    if (!db || !app || !auth?.currentUser?.uid) return;
+    // This part of the function still relies on Firebase Storage.
+    // If you need this to work, you'll need to enable Firebase Storage
+    // for your portalmalaga-bad62 project, or also use a Netlify function.
+    if (!db || !storage || !auth?.currentUser?.uid) return;
 
     const name = pqrNameRef.current?.value?.trim();
     const apartment = pqrApartmentRef.current?.value?.trim();
@@ -700,9 +701,6 @@ export default function App() {
 
     try {
       if (pqrFile) {
-        // CORRECTED: Use dynamic import to get storage functions
-        const { getStorage, ref, uploadBytes, getDownloadURL } = await import("firebase/storage");
-        const storage = getStorage(app);
         const storagePath = `pqrs/${auth.currentUser.uid}-${Date.now()}-${pqrFile.name}`;
         const fileRef = ref(storage, storagePath);
         await uploadBytes(fileRef, pqrFile);
@@ -789,8 +787,6 @@ export default function App() {
     }
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // Force token refresh after login to get custom claims
-      await auth.currentUser.getIdTokenResult(true);
     } catch (err) {
       console.error("Login failed:", err);
       setLoginError(t.login.invalidCredentials);
@@ -1311,6 +1307,11 @@ export default function App() {
                       <p className="text-sm text-gray-500 mt-1">
                         Submitted by: {p.name} ({p.apartment})
                       </p>
+                      {p.createdAt && (
+                        <p className="text-sm text-gray-400 mt-2">
+                          {t.submitted} {formatTimestamp(p.createdAt)}
+                        </p>
+                      )}
                       {p.fileUrl && (
                         <a 
                           href={p.fileUrl} 
@@ -1654,7 +1655,7 @@ export default function App() {
         {isManager && showModal === "upload_private_doc" && (
           <Modal
             title={t.modal.uploadPrivate}
-            onClose={() => { setShowModal(null); setSelectedPrivateFiles([]); setSelectedFileNames([]); if (privateFolderPathRef.current) privateFolderPathRef.current.value = ""; }}
+            onClose={() => { setShowModal(null); }}
           >
             <form onSubmit={handleUploadPrivateFiles} className="space-y-4">
               <div>
@@ -1680,7 +1681,7 @@ export default function App() {
                 <label className="block text-sm font-medium mb-1">{t.modal.folderPath}</label>
                 <input
                   type="text"
-                  ref={privateFolderPathRef} // Use the ref here
+                  ref={privateFolderNameRef}
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder={t.modal.folderPathPlaceholder}
                 />
@@ -1694,24 +1695,13 @@ export default function App() {
                   onChange={(e) => {
                     const files = Array.from(e.target.files);
                     setSelectedPrivateFiles(files);
-                    setSelectedFileNames(files.map(file => file.name));
                   }}
                 />
-                {selectedFileNames.length > 0 && (
-                  <div className="mt-2 text-sm text-gray-600">
-                    <p>Selected files:</p>
-                    <ul>
-                      {selectedFileNames.map((name, index) => (
-                        <li key={index}>{name}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
               </div>
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => { setShowModal(null); setSelectedPrivateFiles([]); setSelectedFileNames([]); if (privateFolderPathRef.current) privateFolderPathRef.current.value = ""; }}
+                  onClick={() => { setShowModal(null); setSelectedPrivateFiles([]); }}
                   className="bg-gray-300 text-gray-800 px-4 py-2 rounded-full font-semibold hover:bg-gray-400 transition-colors"
                 >
                   {t.modal.cancel}
