@@ -375,8 +375,8 @@ export default function App() {
                   setUserRole(isManagerStatus ? "manager" : "resident");
                   setUserApartment(userData.apartment || null);
                 } else {
-                  await setDoc(userDocRef, { 
-                    isManager: false, 
+                  await setDoc(userDocRef, {
+                    isManager: false,
                     email: user.email || null,
                     name: null,
                     apartment: null,
@@ -419,18 +419,18 @@ export default function App() {
 
   useEffect(() => {
     if (!db || !isAuthReady) return;
-  
+    
     const announcementsPath = `artifacts/${appId}/public/data/announcements`;
     const pqrsPath = `artifacts/${appId}/public/data/pqrs`;
     const documentsPath = `artifacts/${appId}/public/data/documents`;
     const usersPath = `artifacts/${appId}/public/data/users`;
-  
+    
     let unsubAnnouncements = () => {};
     let unsubPqrs = () => {};
     let unsubDocs = () => {};
     let unsubPrivateDocs = () => {};
     let unsubResidents = () => {};
-  
+    
     try {
       unsubAnnouncements = onSnapshot(
         query(collection(db, announcementsPath), orderBy("createdAt", "desc")),
@@ -439,7 +439,7 @@ export default function App() {
         },
         (err) => console.error("Announcements listener error:", err)
       );
-  
+      
       if (isManager) {
         unsubPqrs = onSnapshot(
           query(collection(db, pqrsPath), orderBy("createdAt", "desc")),
@@ -461,7 +461,7 @@ export default function App() {
         (snap) => setDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
         (err) => console.error("Documents listener error:", err)
       );
-  
+      
       if (userRole === "resident" && auth?.currentUser?.uid) {
         const privateDocsPath = `${usersPath}/${auth.currentUser.uid}/privateDocuments`;
         unsubPrivateDocs = onSnapshot(
@@ -470,11 +470,10 @@ export default function App() {
           (err) => console.error("Private Documents listener error:", err)
         );
       } else if (isManager) {
-        // Manager view: Modified collection group query with appId constraints
+        // CORRECTED: Use a simple collection group query.
+        // The Firestore rules handle the security and filtering by `appId`.
         const privateDocsQuery = query(
           collectionGroup(db, 'privateDocuments'),
-          where('__name__', '>=', `artifacts/${appId}/`),
-          where('__name__', '<=', `artifacts/${appId}/~`),
           orderBy("createdAt", "desc")
         );
         
@@ -486,7 +485,7 @@ export default function App() {
       } else {
         setPrivateDocuments([]);
       }
-  
+      
       if (isManager) {
         unsubResidents = onSnapshot(
           query(collection(db, usersPath), where("isManager", "==", false)),
@@ -502,11 +501,11 @@ export default function App() {
       } else {
         setResidents([]);
       }
-  
+      
     } catch (err) {
       console.error("Error setting up Firestore listeners:", err);
     }
-  
+    
     return () => {
       unsubAnnouncements();
       unsubPqrs();
@@ -563,7 +562,7 @@ export default function App() {
       await addDoc(collection(db, path), {
         title,
         body,
-        imageUrls: imageUrls, 
+        imageUrls: imageUrls,
         createdAt: serverTimestamp(),
         authorId: auth.currentUser.uid,
       });
@@ -1179,8 +1178,8 @@ export default function App() {
                               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                             </svg>
                           </button>
-                          <button 
-                            onClick={() => handleDelete('announcements', a.id)} 
+                          <button
+                            onClick={() => handleDelete('announcements', a.id)}
                             className="bg-white p-2 rounded-full text-gray-400 hover:text-red-600 shadow-md"
                             aria-label="Delete announcement"
                           >
@@ -1258,8 +1257,8 @@ export default function App() {
                             </svg>
                           </button>
                           {isManager && (
-                            <button 
-                              onClick={() => handleDelete('pqrs', p.id)} 
+                            <button
+                              onClick={() => handleDelete('pqrs', p.id)}
                               className="text-gray-400 hover:text-red-600"
                               aria-label="Delete PQR"
                             >
@@ -1309,10 +1308,10 @@ export default function App() {
                         Submitted by: {p.name} ({p.apartment})
                       </p>
                       {p.fileUrl && (
-                        <a 
-                          href={p.fileUrl} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
+                        <a
+                          href={p.fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           className="mt-2 text-sm text-blue-600 hover:underline inline-block"
                         >
                           View Attachment
@@ -1498,8 +1497,8 @@ export default function App() {
                   <label className="block text-sm font-medium mb-1">{t.modal.image}</label>
                   <input
                     type="file"
-                    multiple 
-                    onChange={(e) => setImageFiles(Array.from(e.target.files))} 
+                    multiple
+                    onChange={(e) => setImageFiles(Array.from(e.target.files))}
                     className="w-full text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                   />
                 </div>
