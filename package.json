@@ -18,10 +18,11 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "npm run vite-build",
+    "build": "npm run setup-functions && npm run vite-build",
     "preview": "vite preview",
     "start": "vite",
-    "vite-build": "vite build"
+    "vite-build": "vite build",
+    "setup-functions": "node netlify/functions/setup.js"
   },
   "browserslist": {
     "production": [
