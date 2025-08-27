@@ -14,13 +14,12 @@
     "vite": "^4.0.0"
   },
   "scripts": {
-    "dev": "vite",
-    "build": "npm run build:functions && vite build",
-    "preview": "vite preview",
-    "start": "vite",
-    "build:functions": "node netlify/functions/setup.js",
-    "postbuild:functions": "netlify-lambda build netlify/functions"
-  },
+      "dev": "vite",
+      "build": "npm run build:functions && vite build",
+      "preview": "vite preview",
+      "start": "vite",
+      "build:functions": "node netlify/functions/setup.js && netlify-lambda build netlify/functions"
+    },
   "browserslist": {
     "production": [
       ">0.2%",
