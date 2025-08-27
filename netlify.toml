@@ -5,14 +5,3 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
-  # This section is commented out to avoid using environment variables directly
-  # for the function build environment.
-  #
-  # [build.environment]
-  #   FIREBASE_ADMIN_CREDENTIALS = "..."
-  #   GOOGLE_CLOUD_CREDENTIALS = "..."
-
-# This part is a workaround to write the credentials to a file during the build.
-[context.production.environment]
-  FIREBASE_ADMIN_CREDENTIALS = "Paste the entire JSON string here"
-  GOOGLE_CLOUD_CREDENTIALS = "Paste the entire JSON string here"
