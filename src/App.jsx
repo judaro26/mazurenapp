@@ -339,7 +339,7 @@ export default function App() {
   const documentNameRef = React.useRef(null);
   const documentUrlRef = React.useRef(null);
   const privateFolderPathRef = React.useRef(null);
-  const setRoleEmailRef = React.useRef(null); // Ref for manager role setting form
+  const setRoleEmailRef = React.useRef(null);
 
   useEffect(() => {
     (async () => {
@@ -368,7 +368,7 @@ export default function App() {
                 setUserRole("anonymous");
                 setUserApartment(null);
               } else {
-                // Force refresh the ID token to ensure we have the latest claims
+                // This is the core fix: Force refresh the ID token immediately
                 await user.getIdToken(true);
                 const idTokenResult = await user.getIdTokenResult();
                 const isManagerStatus = idTokenResult.claims?.isManager === true;
@@ -422,102 +422,6 @@ export default function App() {
       }
     })();
   }, [firebaseConfig, appId]);
-
-  useEffect(() => {
-    if (!db || !isAuthReady) return;
-    
-    const announcementsPath = `artifacts/${appId}/public/data/announcements`;
-    const pqrsPath = `artifacts/${appId}/public/data/pqrs`;
-    const documentsPath = `artifacts/${appId}/public/data/documents`;
-    const usersPath = `artifacts/${appId}/public/data/users`;
-    
-    let unsubAnnouncements = () => {};
-    let unsubPqrs = () => {};
-    let unsubDocs = () => {};
-    let unsubPrivateDocs = () => {};
-    let unsubResidents = () => {};
-    
-    try {
-        unsubAnnouncements = onSnapshot(
-            query(collection(db, announcementsPath), orderBy("createdAt", "desc")),
-            (snap) => {
-                setAnnouncements(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-            },
-            (err) => console.error("Announcements listener error:", err)
-        );
-
-        unsubDocs = onSnapshot(
-            query(collection(db, documentsPath), orderBy("createdAt", "desc")),
-            (snap) => setDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-            (err) => console.error("Documents listener error:", err)
-        );
-
-        if (userRole) {
-            if (userRole === "manager") {
-                unsubPqrs = onSnapshot(
-                    query(collection(db, pqrsPath), orderBy("createdAt", "desc")),
-                    (snap) => setPqrs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-                    (err) => console.error("PQRs listener error:", err)
-                );
-            } else if (userRole === "resident" && auth?.currentUser?.uid) {
-                unsubPqrs = onSnapshot(
-                    query(collection(db, pqrsPath), where("authorId", "==", auth.currentUser.uid), orderBy("createdAt", "desc")),
-                    (snap) => setPqrs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-                    (err) => console.error("PQRs listener error:", err)
-                );
-            } else {
-                setPqrs([]);
-            }
-    
-            if (userRole === "manager") {
-                unsubResidents = onSnapshot(
-                    query(collection(db, usersPath), where("isManager", "==", false)),
-                    (snap) => {
-                        const residentsList = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-                        setResidents(residentsList);
-                        if (residentsList.length > 0) {
-                            setSelectedResidentUid(residentsList[0].id);
-                        }
-                    },
-                    (err) => console.error("Residents list listener error:", err)
-                );
-            } else {
-                setResidents([]);
-            }
-    
-            if (userRole === "resident" && auth?.currentUser?.uid) {
-                const privateDocsPath = `${usersPath}/${auth.currentUser.uid}/privateDocuments`;
-                unsubPrivateDocs = onSnapshot(
-                    query(collection(db, privateDocsPath), orderBy("createdAt", "desc")),
-                    (snap) => setPrivateDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-                    (err) => console.error("Private Documents listener error:", err)
-                );
-            } else if (userRole === "manager") {
-                unsubPrivateDocs = onSnapshot(
-                    query(collectionGroup(db, 'privateDocuments'), orderBy("createdAt", "desc")),
-                    (snap) => setPrivateDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-                    (err) => console.error("Private Documents listener error:", err)
-                );
-            } else {
-                setPrivateDocuments([]);
-            }
-        } else {
-            setPqrs([]);
-            setResidents([]);
-            setPrivateDocuments([]);
-        }
-    } catch (err) {
-        console.error("Error setting up Firestore listeners:", err);
-    }
-    
-    return () => {
-        unsubAnnouncements();
-        unsubPqrs();
-        unsubDocs();
-        unsubResidents();
-        unsubPrivateDocs();
-    };
-}, [db, isAuthReady, appId, isLoggedIn, isManager, auth, userRole]);
 
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -1089,8 +993,62 @@ export default function App() {
   }
 
   /**
-   * Main UI
+   * Modal
    */
+  const Modal = ({ title, onClose, children }) => (
+    <div className="fixed inset-0 bg-black/40 flex justify-center items-center p-4 z-50">
+      <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-lg">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-bold">{title}</h3>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-800"
+            aria-label="Close modal"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+
+  /**
+   * Early error: missing config
+   */
+  if (configError) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
+        <div className="max-w-xl bg-white rounded-2xl shadow p-6">
+          <h2 className="text-2xl font-bold mb-2">{t.configMissing.title}</h2>
+          <p className="text-gray-600 mb-4">{t.configMissing.desc}</p>
+          <ul className="list-disc pl-6 space-y-2 text-gray-700">
+            <li>
+              <span className="font-semibold">{t.configMissing.opt1Title}:</span> {t.configMissing.opt1Desc}
+            </li>
+            <li>
+              <span className="font-semibold">{t.configMissing.opt2Title}:</span> {t.configMissing.opt2Desc}
+            </li>
+          </ul>
+          <p className="text-sm text-gray-500 mt-4">{t.configMissing.required}</p>
+        </div>
+      </div>
+    );
+  }
+
+  /**
+   * Global loading
+   */
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-100">
+        <div className="animate-pulse text-gray-500 text-lg">{t.loading}</div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-100 font-sans text-gray-800 p-4 sm:p-6">
       <div className="max-w-4xl mx-auto">
